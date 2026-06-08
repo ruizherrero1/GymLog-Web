@@ -5,7 +5,6 @@ import type { Session } from "@supabase/supabase-js";
 import {
   Activity,
   Check,
-  Cloud,
   Download,
   Dumbbell,
   History,
@@ -22,6 +21,7 @@ import { createEmptyGymLogState, normalizeGymLogState, uid } from "@/lib/example
 import { loadLocalState, saveLocalState } from "@/lib/local-store";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { ActiveWorkout, GymLogState, Routine, WorkoutSet } from "@/lib/types";
+import { LoginScreen } from "@/components/LoginScreen";
 
 type Tab = "rutinas" | "entreno" | "historial" | "progreso" | "ajustes";
 
@@ -53,13 +53,12 @@ export function GymLogApp() {
   const [activeTab, setActiveTab] = useState<Tab>("rutinas");
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
   const [status, setStatus] = useState("Datos locales listos.");
   const [routineName, setRoutineName] = useState("");
   const [routineDescription, setRoutineDescription] = useState("");
   const [routineLines, setRoutineLines] = useState("Dominadas\nPeso muerto rumano\nPress militar");
   const [hydrated, setHydrated] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -149,68 +148,30 @@ export function GymLogApp() {
   }
 
   async function saveCloudState() {
-    if (!supabase || !session) {
-      setStatus("Configura Supabase e inicia sesion para sincronizar.");
-      return;
-    }
-
-    const nextState = {
-      ...state,
-      settings: { ...state.settings, lastSyncedAt: new Date().toISOString() },
-    };
+    if (!supabase || !session) return;
+    setSyncStatus('saving');
 
     const { error } = await supabase.from("gymlog_user_state").upsert({
       user_id: session.user.id,
-      data: nextState,
+      data: state,
       updated_at: new Date().toISOString(),
     });
 
     if (error) {
-      setStatus(`No se pudo guardar en Supabase: ${error.message}`);
+      setSyncStatus('error');
       return;
     }
 
-    setState(nextState);
-    setStatus("Datos guardados en Supabase.");
+    setSyncStatus('saved');
+    setTimeout(() => setSyncStatus('idle'), 3000);
   }
 
-  async function signInWithEmail() {
-    if (!supabase) return setStatus("Faltan NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.");
-    if (!email.trim()) return setStatus("Introduce un email.");
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
-
-    setStatus(error ? error.message : "Codigo enviado. Revisa el email.");
-  }
-
-  async function verifyEmailCode() {
-    if (!supabase) return;
-    if (!email.trim() || !otp.trim()) return setStatus("Introduce email y codigo.");
-
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: otp.replace(/\s/g, ""),
-      type: "email",
-    });
-
-    setStatus(error ? error.message : "Sesion iniciada.");
-    if (!error) setOtp("");
-  }
-
-  async function signInWithGoogle() {
-    if (!supabase) return setStatus("Faltan variables de Supabase.");
-
-    const redirectTo = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-
-    if (error) setStatus(error.message);
-  }
+  useEffect(() => {
+    if (!session || !hydrated) return;
+    const timer = setTimeout(() => void saveCloudState(), 2000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, session, hydrated]);
 
   async function signOut() {
     if (!supabase) return;
@@ -348,6 +309,9 @@ export function GymLogApp() {
     reader.readAsText(file);
   }
 
+  if (!hydrated) return null;
+  if (isSupabaseConfigured && !session) return <LoginScreen />;
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -365,8 +329,13 @@ export function GymLogApp() {
           </div>
           <div className="topbar-actions">
             <div className="date-badge">{todayLabel}</div>
+            {session && syncStatus !== 'idle' && (
+              <div className={syncStatus === 'error' ? "status" : "status good"}>
+                {syncStatus === 'saving' ? 'Guardando…' : syncStatus === 'saved' ? '✓ Guardado' : 'Error al guardar'}
+              </div>
+            )}
             <div className={session ? "status good" : "status"}>
-              {session ? `Conectado: ${session.user.email}` : "Modo local"}
+              {session ? session.user.email : "Modo local"}
             </div>
           </div>
         </div>
@@ -386,38 +355,17 @@ export function GymLogApp() {
         <section className="panel dark">
           <h2 className="panel-title">Estado de cuenta</h2>
           <p className="panel-copy">
-            {isSupabaseConfigured
-              ? "Supabase configurado. Puedes iniciar sesion y guardar datos remotos."
-              : "Supabase pendiente. La app funciona en local y ya esta lista para conectar el proyecto."}
+            {session
+              ? `Sincronización automática activa. Datos en la nube para ${session.user.email}.`
+              : "Modo local. Los datos se guardan solo en este navegador."}
           </p>
-          <div className="form-row">
-            <div className="field">
-              <label>Email</label>
-              <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu@email.com" />
-            </div>
-            <div className="toolbar">
-              <button className="button accent" onClick={signInWithEmail}>
-                <Cloud size={16} /> Enviar codigo
-              </button>
-              <button className="button" onClick={signInWithGoogle}>
-                Google
+          {session && (
+            <div className="toolbar" style={{ marginTop: 12 }}>
+              <button className="button" onClick={signOut}>
+                <LogOut size={16} /> Cerrar sesión
               </button>
             </div>
-            <div className="field">
-              <label>Codigo</label>
-              <input value={otp} onChange={(event) => setOtp(event.target.value)} placeholder="123456" />
-            </div>
-            <div className="toolbar">
-              <button className="button primary" onClick={verifyEmailCode}>
-                Verificar
-              </button>
-              {session ? (
-                <button className="button" onClick={signOut}>
-                  <LogOut size={16} /> Salir
-                </button>
-              ) : null}
-            </div>
-          </div>
+          )}
         </section>
       </section>
 
@@ -614,12 +562,13 @@ export function GymLogApp() {
         {activeTab === "ajustes" ? (
           <section className="grid two">
             <article className="panel">
-              <h2 className="panel-title">Sincronizacion</h2>
-              <p className="panel-copy">{status}</p>
+              <h2 className="panel-title">Sincronización</h2>
+              <p className="panel-copy">
+                {session
+                  ? "Los datos se guardan automáticamente en la nube tras cada cambio."
+                  : "Sin sesión activa. Los datos se guardan solo en local."}
+              </p>
               <div className="toolbar" style={{ marginTop: 14 }}>
-                <button className="button primary" onClick={saveCloudState}>
-                  <Cloud size={16} /> Guardar nube
-                </button>
                 <button className="button" onClick={() => void loadCloudState()}>
                   <RefreshCw size={16} /> Leer nube
                 </button>
