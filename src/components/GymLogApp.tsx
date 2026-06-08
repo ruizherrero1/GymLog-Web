@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
+  Activity,
   Check,
   Cloud,
   Download,
@@ -13,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Settings,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -30,6 +32,21 @@ const tabLabels: Record<Tab, string> = {
   progreso: "Progreso",
   ajustes: "Ajustes",
 };
+
+function tabIcon(tab: Tab) {
+  switch (tab) {
+    case "rutinas":
+      return <Dumbbell size={16} />;
+    case "entreno":
+      return <Play size={16} />;
+    case "historial":
+      return <History size={16} />;
+    case "progreso":
+      return <Activity size={16} />;
+    case "ajustes":
+      return <Settings size={16} />;
+  }
+}
 
 export function GymLogApp() {
   const [state, setState] = useState<GymLogState>(() => createEmptyGymLogState());
@@ -94,6 +111,16 @@ export function GymLogApp() {
       latest,
     };
   }, [state.sessions, state.routines.length]);
+
+  const todayLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("es-ES", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+      }).format(new Date()),
+    [],
+  );
 
   async function loadCloudState(activeSession = session) {
     if (!supabase || !activeSession) return;
@@ -326,25 +353,35 @@ export function GymLogApp() {
       <header className="topbar">
         <div className="container topbar-inner">
           <div className="brand">
-            <div className="brand-mark">GL</div>
+            <div className="brand-mark">
+              <Dumbbell size={20} />
+            </div>
             <div>
-              <div className="brand-title">GymLog Web</div>
-              <div className="brand-subtitle">Rutinas, sesiones e historial por usuario</div>
+              <div className="brand-title">
+                GYM<span>LOG</span>
+              </div>
+              <div className="brand-subtitle">Tu entrenamiento</div>
             </div>
           </div>
-          <div className={session ? "status good" : "status"}>
-            {session ? `Conectado: ${session.user.email}` : "Modo local"}
+          <div className="topbar-actions">
+            <div className="date-badge">{todayLabel}</div>
+            <div className={session ? "status good" : "status"}>
+              {session ? `Conectado: ${session.user.email}` : "Modo local"}
+            </div>
           </div>
         </div>
       </header>
 
       <section className="container hero">
-        <div>
-          <h1 className="hero-title">Entrena, registra y conserva tus datos.</h1>
-          <p className="hero-copy">
-            Empieza con una rutina de ejemplo y el historial limpio. Cuando Supabase este configurado,
-            cada usuario podra sincronizar su copia privada sin afectar a la app original.
-          </p>
+        <div className="hero-main">
+          <div className="section-title">Panel de entrenamiento</div>
+          <h1 className="hero-title">Rutinas listas, historial limpio.</h1>
+          <p className="hero-copy">{status}</p>
+          <div className="quick-stats">
+            <span>{stats.routines} rutinas</span>
+            <span>{stats.sessions} sesiones</span>
+            <span>{stats.sets} series</span>
+          </div>
         </div>
         <section className="panel dark">
           <h2 className="panel-title">Estado de cuenta</h2>
@@ -407,6 +444,7 @@ export function GymLogApp() {
               className={activeTab === tab ? "tab active" : "tab"}
               onClick={() => setActiveTab(tab)}
             >
+              {tabIcon(tab)}
               {tabLabels[tab]}
             </button>
           ))}
