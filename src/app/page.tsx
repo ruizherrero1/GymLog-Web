@@ -1,25 +1,8 @@
+import { redirect } from "next/navigation";
+
+// The deployed app is the self-contained GymLog HTML served at "/" via a
+// rewrite in next.config.ts. This page is only a fallback in case the rewrite
+// is bypassed (e.g. direct app-router navigation).
 export default function Home() {
-  return (
-    <main
-      style={{
-        width: "100vw",
-        height: "100dvh",
-        margin: 0,
-        overflow: "hidden",
-        background: "#08080e",
-      }}
-    >
-      <iframe
-        title="GymLog"
-        src="/gymlog-classic.html"
-        style={{
-          width: "100%",
-          height: "100%",
-          border: 0,
-          display: "block",
-          background: "#08080e",
-        }}
-      />
-    </main>
-  );
+  redirect("/gymlog-classic.html");
 }

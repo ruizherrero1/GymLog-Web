@@ -213,7 +213,7 @@ output = output.replace("const LEGACY_THEME_KEYS = ['gymlog-theme-export-1777218
 output = output.replace("const GYMLOG_SUPABASE_URL = 'https://qserywqzvluqfrnyeggz.supabase.co';", "const GYMLOG_SUPABASE_URL = 'https://tnuohiyrwnoqsnxyfonn.supabase.co';");
 output = output.replace("const GYMLOG_SUPABASE_KEY = 'sb_publishable_l25PyMak_ttZ9ElV_FilPw_1J8lFZma';", "const GYMLOG_SUPABASE_KEY = 'sb_publishable__hfnlx_lrL6XI05FZyITLA_L6aUzK2A';");
 output = output.replace("if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){", "if(false && 'serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){");
-output = output.replace("initializeGymLogCloud();", "// initializeGymLogCloud(); // Disabled in GymLog-Web until web cloud sync is adapted.");
+// Cloud sync + login gate stay enabled in the public build (multi-user via Supabase).
 output = output.replace('return "grafito";', 'return "oceano";');
 output = output.replace("currentThemeName = name in themes ? name : 'militar';", "currentThemeName = name in themes ? name : 'oceano';");
 output = output.replace("(themes[currentThemeName] || themes.militar).accent", "(themes[currentThemeName] || themes.oceano).accent");
@@ -224,7 +224,8 @@ output = output.replace(".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPO
 output = output.replace(/<div class="health-connect-card">[\s\S]*?<div class="backup-card" style="margin-bottom:12px; align-items:stretch">/, `<div class="backup-card" style="margin-bottom:12px; align-items:stretch">
       <div>
         <div class="chart-title" style="margin:0">Cuenta y sincronizacion web</div>
-        <div class="backup-copy">Proximamente: iniciar sesion para guardar tus datos privados en la nube y recuperarlos en cualquier dispositivo.</div>
+        <div class="backup-copy">Tus datos se guardan automaticamente en la nube y se sincronizan en cualquier dispositivo donde inicies sesion. Sesion activa: <strong id="webAccountEmail">Sin sesion</strong>.</div>
+        <button id="webAccountLogout" class="ghost-btn" style="margin-top:10px; display:none" onclick="signOutGymLogin()">Cerrar sesion</button>
       </div>
     </div>
 

@@ -26541,8 +26541,10 @@ let gymLogSyncTimer = null;
 function showLoginGate(){
   const gate = document.getElementById('loginGate');
   if(gate) gate.style.display = 'flex';
-  document.getElementById('loginStepEmail').style.display = '';
-  document.getElementById('loginStepOtp').style.display = 'none';
+  const stepEmail = document.getElementById('loginStepEmail');
+  if(stepEmail) stepEmail.style.display = '';
+  const stepOtp = document.getElementById('loginStepOtp');
+  if(stepOtp) stepOtp.style.display = 'none';
   setLoginMsg('', false);
   setTimeout(()=>document.getElementById('loginEmailInput')?.focus(), 150);
 }
@@ -26587,7 +26589,7 @@ async function sendGymLoginOtp(){
 async function verifyGymLoginOtp(){
   if(!gymLogCloudClient) return;
   const token = document.getElementById('loginOtpInput')?.value?.trim().replace(/\s/g,'');
-  if(!token || token.length < 6) return setLoginMsg('Introduce el código de 6 dígitos.', true);
+  if(!/^\d{6,8}$/.test(token || '')) return setLoginMsg('Introduce el código numérico que recibiste por email.', true);
   setLoginBusy(true);
   setLoginMsg('Verificando...', false);
   const { error } = await gymLogCloudClient.auth.verifyOtp({ email:gymLoginEmail, token, type:'email' });
@@ -26598,7 +26600,7 @@ async function loginWithGymGoogle(){
   if(!gymLogCloudClient) return;
   setLoginBusy(true);
   setLoginMsg('Redirigiendo a Google...', false);
-  const { error } = await gymLogCloudClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo:window.location.href } });
+  const { error } = await gymLogCloudClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo:`${window.location.origin}${window.location.pathname}` } });
   if(error){ setLoginBusy(false); setLoginMsg(error.message || 'Error con Google.', true); }
 }
 async function loadUserCloudState(){
@@ -26623,12 +26625,18 @@ async function signOutGymLogin(){
   if(!gymLogCloudClient) return;
   await gymLogCloudClient.auth.signOut();
 }
+function updateWebAccountBox(){
+  const email = document.getElementById('webAccountEmail');
+  if(email) email.textContent = gymLogCloudSession?.user?.email || 'Sin sesión';
+  const logout = document.getElementById('webAccountLogout');
+  if(logout) logout.style.display = gymLogCloudSession ? 'inline-flex' : 'none';
+}
 // --- END LOGIN GATE ---
 
 async function initializeGymLogCloud(){
   if(!window.supabase?.createClient) return console.warn('SDK de Supabase no cargado.');
   gymLogCloudClient = window.supabase.createClient(GYMLOG_SUPABASE_URL, GYMLOG_SUPABASE_KEY);
-  gymLogCloudSession = (await gymLogCloudClient.auth.getSession()).data.session || null;
+  // Register the auth listener first: INITIAL_SESSION + future changes drive the gate.
   gymLogCloudClient.auth.onAuthStateChange((_event, session) => {
     const hadSession = !!gymLogCloudSession;
     gymLogCloudSession = session;
@@ -26640,12 +26648,28 @@ async function initializeGymLogCloud(){
       showLoginGate();
     }
     renderHealthSettings();
+    updateWebAccountBox();
   });
-  if(!gymLogCloudSession){
+  // Show the gate optimistically when there is no persisted token, so a hung or
+  // slow getSession() (navigator.locks) can never leave the app unprotected.
+  const hasPersistedToken = Object.keys(localStorage).some(k => /^sb-.*-auth-token$/.test(k));
+  if(!hasPersistedToken) showLoginGate();
+  // Resolve the session with a timeout so init never blocks forever.
+  let resolvedSession = null;
+  try{
+    const result = await Promise.race([
+      gymLogCloudClient.auth.getSession(),
+      new Promise(resolve => setTimeout(() => resolve({ data:{ session:null }, timedOut:true }), 5000)),
+    ]);
+    resolvedSession = result?.data?.session || null;
+  }catch(error){ console.warn('getSession fallo:', error); }
+  gymLogCloudSession = resolvedSession;
+  if(!resolvedSession){
     showLoginGate();
     return;
   }
   hideLoginGate();
+  updateWebAccountBox();
   await loadUserCloudState();
   await refreshGoogleHealthStatus();
   const params = new URLSearchParams(window.location.search);
@@ -26678,7 +26702,13 @@ document.getElementById('importFile')?.addEventListener('change', (e)=>{
   e.target.value = '';
 });
 pruneDeletedWorkoutLog();
-initializeGymLogCloud();
+// The #loginGate markup lives after this script, so it is not parsed yet when
+// the script runs. Defer cloud/login init until the DOM (and the gate) exists.
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', () => initializeGymLogCloud());
+} else {
+  initializeGymLogCloud();
+}
 if(!restoreActiveWorkout()) renderWorkoutGrid();
 if(pendingStartupSyncMessage) showToast(pendingStartupSyncMessage);
 setTimeout(()=>{ refreshFromPublishedHtml({ silent:true }); }, 1200);
@@ -26728,7 +26758,7 @@ document.addEventListener('touchend', e => {
     </div>
     <div id="loginStepOtp" style="display:none;">
       <p style="color:#9CA3AF; font-size:0.875rem; text-align:center; margin:0 0 1.25rem;">Código enviado a <strong id="loginEmailDisplay" style="color:#F3F4F6;"></strong></p>
-      <input id="loginOtpInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="000000" maxlength="6" autocomplete="one-time-code" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:1.25rem; letter-spacing:0.25em; text-align:center; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')verifyGymLoginOtp()">
+      <input id="loginOtpInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Código" maxlength="8" autocomplete="one-time-code" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:1.25rem; letter-spacing:0.25em; text-align:center; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')verifyGymLoginOtp()">
       <button onclick="verifyGymLoginOtp()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; margin-bottom:0.5rem; box-sizing:border-box;">Verificar</button>
       <button onclick="showLoginEmailStep()" style="width:100%; padding:0.625rem; background:transparent; color:#6B7280; border:1px solid #374151; border-radius:0.625rem; cursor:pointer; font-size:0.85rem; box-sizing:border-box;">Cambiar email</button>
     </div>
