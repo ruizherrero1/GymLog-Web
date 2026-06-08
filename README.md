@@ -1,1 +1,1 @@
-# GymLog-Web
+# Gym-app
