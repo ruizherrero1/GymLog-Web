@@ -1,0 +1,20 @@
+{
+  "name": "GymLog Web",
+  "short_name": "GymLog",
+  "description": "Rutinas, historial y progreso de entrenamiento por usuario.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f7f4",
+  "theme_color": "#101820",
+  "icons": [
+    {
+      "src": "/icons/gym-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
