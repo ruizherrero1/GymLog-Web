@@ -26575,16 +26575,16 @@ async function sendGymLoginOtp(){
   if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setLoginMsg('Introduce un email válido.', true);
   gymLoginEmail = email;
   setLoginBusy(true);
-  setLoginMsg('Enviando código...', false);
-  const { error } = await gymLogCloudClient.auth.signInWithOtp({ email, options:{ shouldCreateUser:true } });
+  setLoginMsg('Enviando email...', false);
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { error } = await gymLogCloudClient.auth.signInWithOtp({ email, options:{ shouldCreateUser:true, emailRedirectTo:redirectTo } });
   setLoginBusy(false);
-  if(error) return setLoginMsg(error.message || 'Error al enviar el código.', true);
+  if(error) return setLoginMsg(error.message || 'Error al enviar el email.', true);
   document.getElementById('loginStepEmail').style.display = 'none';
   document.getElementById('loginStepOtp').style.display = '';
   const disp = document.getElementById('loginEmailDisplay');
   if(disp) disp.textContent = email;
-  setLoginMsg('Código enviado. Revisa tu correo.', false);
-  setTimeout(()=>document.getElementById('loginOtpInput')?.focus(), 150);
+  setLoginMsg('Email enviado. Ábrelo en este dispositivo y pulsa el enlace para entrar.', false);
 }
 async function verifyGymLoginOtp(){
   if(!gymLogCloudClient) return;
@@ -26754,13 +26754,17 @@ document.addEventListener('touchend', e => {
         <div style="flex:1; height:1px; background:#374151;"></div>
       </div>
       <input id="loginEmailInput" type="email" placeholder="tu@email.com" autocomplete="email" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')sendGymLoginOtp()">
-      <button onclick="sendGymLoginOtp()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; box-sizing:border-box;">Enviar código</button>
+      <button onclick="sendGymLoginOtp()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; box-sizing:border-box;">Enviar enlace de acceso</button>
     </div>
     <div id="loginStepOtp" style="display:none;">
-      <p style="color:#9CA3AF; font-size:0.875rem; text-align:center; margin:0 0 1.25rem;">Código enviado a <strong id="loginEmailDisplay" style="color:#F3F4F6;"></strong></p>
-      <input id="loginOtpInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Código" maxlength="8" autocomplete="one-time-code" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:1.25rem; letter-spacing:0.25em; text-align:center; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')verifyGymLoginOtp()">
-      <button onclick="verifyGymLoginOtp()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; margin-bottom:0.5rem; box-sizing:border-box;">Verificar</button>
-      <button onclick="showLoginEmailStep()" style="width:100%; padding:0.625rem; background:transparent; color:#6B7280; border:1px solid #374151; border-radius:0.625rem; cursor:pointer; font-size:0.85rem; box-sizing:border-box;">Cambiar email</button>
+      <div style="font-size:2rem; text-align:center; margin-bottom:0.75rem;">📩</div>
+      <p style="color:#9CA3AF; font-size:0.875rem; text-align:center; margin:0 0 1.25rem;">Te enviamos un email a <strong id="loginEmailDisplay" style="color:#F3F4F6;"></strong>. Ábrelo en este mismo dispositivo y pulsa el enlace para entrar.</p>
+      <button onclick="showLoginEmailStep()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; margin-bottom:0.75rem; box-sizing:border-box;">Usar otro email</button>
+      <details style="margin-top:0.25rem;">
+        <summary style="color:#6B7280; font-size:0.78rem; cursor:pointer; text-align:center; list-style:none;">¿El email trae un código? Introdúcelo aquí</summary>
+        <input id="loginOtpInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Código" maxlength="8" autocomplete="one-time-code" style="width:100%; padding:0.75rem 1rem; margin-top:0.75rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:1.25rem; letter-spacing:0.25em; text-align:center; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')verifyGymLoginOtp()">
+        <button onclick="verifyGymLoginOtp()" style="width:100%; padding:0.625rem; background:transparent; color:#F3F4F6; border:1px solid #4B5563; border-radius:0.625rem; cursor:pointer; font-size:0.85rem; box-sizing:border-box;">Verificar código</button>
+      </details>
     </div>
     <div id="loginMsg" style="display:none; text-align:center; margin-top:0.75rem; font-size:0.8rem;"></div>
   </div>
