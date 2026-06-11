@@ -63,6 +63,17 @@ function extractConstArray(source, name) {
   throw new Error(`No se pudo cerrar ${name}`);
 }
 
+function replaceStrict(source, pattern, replacement) {
+  if (typeof pattern === "string") {
+    if (!source.includes(pattern)) {
+      throw new Error(`Patron no encontrado en index.html: ${pattern.slice(0, 100)}`);
+    }
+  } else if (!pattern.test(source)) {
+    throw new Error(`Regex sin coincidencia en index.html: ${pattern}`);
+  }
+  return source.replace(pattern, replacement);
+}
+
 function replaceConstObject(source, name, value) {
   const extracted = extractConstObject(source, name);
   return `${source.slice(0, extracted.start)}${JSON.stringify(value, null, 2)}${source.slice(extracted.end)}`;
@@ -76,7 +87,7 @@ function replaceConstArray(source, name, value) {
 function replaceElementInnerById(source, id, replacement = "") {
   const openTagPattern = new RegExp(`<([a-z0-9-]+)\\b[^>]*\\bid=["']${id}["'][^>]*>`, "i");
   const openMatch = openTagPattern.exec(source);
-  if (!openMatch) return source;
+  if (!openMatch) throw new Error(`No se encontro el elemento #${id} en index.html`);
 
   const tag = openMatch[1].toLowerCase();
   const openEnd = openMatch.index + openMatch[0].length;
@@ -98,7 +109,7 @@ function replaceElementInnerById(source, id, replacement = "") {
 function replaceFunctionBody(source, name, body) {
   const needle = `function ${name}(`;
   const index = source.indexOf(needle);
-  if (index < 0) return source;
+  if (index < 0) throw new Error(`No se encontro la funcion ${name} en index.html`);
 
   const start = source.indexOf("{", index);
   let depth = 0;
@@ -203,25 +214,25 @@ let output = source;
 output = replaceConstObject(output, "importedState", publicState);
 output = replaceConstArray(output, "NOTES_ROUTINE_LINKS", []);
 output = replaceConstArray(output, "DEFAULT_NOTES_SECTIONS", []);
-output = output.replace(/const DEFAULT_NOTES_TEXT = `[\s\S]*?`;/, "const DEFAULT_NOTES_TEXT = ``;");
-output = output.replace("const STORAGE_KEY = 'gymlog-ramon-state-v1';", "const STORAGE_KEY = 'gymlog-web-state-v3';");
-output = output.replace("const THEME_KEY = 'gymlog-ramon-theme-v1';", "const THEME_KEY = 'gymlog-web-theme-v4';");
-output = output.replace("const IMPORT_VERSION = 'gymlog-ramon-import-v1';", "const IMPORT_VERSION = 'gymlog-web-import-v3';");
-output = output.replace("const ACTIVE_WORKOUT_KEY = 'gymlog-ramon-active-workout-v1';", "const ACTIVE_WORKOUT_KEY = 'gymlog-web-active-workout-v3';");
-output = output.replace("const LEGACY_STORAGE_KEYS = ['gymlog2-export-1777218631114'];", "const LEGACY_STORAGE_KEYS = [];");
-output = output.replace("const LEGACY_THEME_KEYS = ['gymlog-theme-export-1777218631114'];", "const LEGACY_THEME_KEYS = [];");
-output = output.replace("const GYMLOG_SUPABASE_URL = 'https://qserywqzvluqfrnyeggz.supabase.co';", "const GYMLOG_SUPABASE_URL = 'https://tnuohiyrwnoqsnxyfonn.supabase.co';");
-output = output.replace("const GYMLOG_SUPABASE_KEY = 'sb_publishable_l25PyMak_ttZ9ElV_FilPw_1J8lFZma';", "const GYMLOG_SUPABASE_KEY = 'sb_publishable__hfnlx_lrL6XI05FZyITLA_L6aUzK2A';");
-output = output.replace("if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){", "if(false && 'serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){");
+output = replaceStrict(output, /const DEFAULT_NOTES_TEXT = `[\s\S]*?`;/, "const DEFAULT_NOTES_TEXT = ``;");
+output = replaceStrict(output, "const STORAGE_KEY = 'gymlog-ramon-state-v1';", "const STORAGE_KEY = 'gymlog-web-state-v3';");
+output = replaceStrict(output, "const THEME_KEY = 'gymlog-ramon-theme-v1';", "const THEME_KEY = 'gymlog-web-theme-v4';");
+output = replaceStrict(output, "const IMPORT_VERSION = 'gymlog-ramon-import-v1';", "const IMPORT_VERSION = 'gymlog-web-import-v3';");
+output = replaceStrict(output, "const ACTIVE_WORKOUT_KEY = 'gymlog-ramon-active-workout-v1';", "const ACTIVE_WORKOUT_KEY = 'gymlog-web-active-workout-v3';");
+output = replaceStrict(output, "const LEGACY_STORAGE_KEYS = ['gymlog2-export-1777218631114'];", "const LEGACY_STORAGE_KEYS = [];");
+output = replaceStrict(output, "const LEGACY_THEME_KEYS = ['gymlog-theme-export-1777218631114'];", "const LEGACY_THEME_KEYS = [];");
+output = replaceStrict(output, "const GYMLOG_SUPABASE_URL = 'https://qserywqzvluqfrnyeggz.supabase.co';", "const GYMLOG_SUPABASE_URL = 'https://tnuohiyrwnoqsnxyfonn.supabase.co';");
+output = replaceStrict(output, "const GYMLOG_SUPABASE_KEY = 'sb_publishable_l25PyMak_ttZ9ElV_FilPw_1J8lFZma';", "const GYMLOG_SUPABASE_KEY = 'sb_publishable__hfnlx_lrL6XI05FZyITLA_L6aUzK2A';");
+output = replaceStrict(output, "if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){", "if(false && 'serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){");
 // Cloud sync + login gate stay enabled in the public build (multi-user via Supabase).
-output = output.replace('return "grafito";', 'return "oceano";');
-output = output.replace("currentThemeName = name in themes ? name : 'militar';", "currentThemeName = name in themes ? name : 'oceano';");
-output = output.replace("(themes[currentThemeName] || themes.militar).accent", "(themes[currentThemeName] || themes.oceano).accent");
-output = output.replace("const theme = themes[currentThemeName] || themes.militar;", "const theme = themes[currentThemeName] || themes.oceano;");
-output = output.replace(".replace(/const STORAGE_KEY = '[^']+';/, `const STORAGE_KEY = 'gymlog-ramon-state-v1';`)", ".replace(/const STORAGE_KEY = '[^']+';/, `const STORAGE_KEY = 'gymlog-web-state-v3';`)");
-output = output.replace(".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-ramon-theme-v1';`)", ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-web-theme-v4';`)");
-output = output.replace(".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-ramon-import-v1';`)", ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-web-import-v3';`)");
-output = output.replace(/<div class="health-connect-card">[\s\S]*?<div class="backup-card" style="margin-bottom:12px; align-items:stretch">/, `<div class="backup-card" style="margin-bottom:12px; align-items:stretch">
+output = replaceStrict(output, 'return "grafito";', 'return "oceano";');
+output = replaceStrict(output, "currentThemeName = name in themes ? name : 'militar';", "currentThemeName = name in themes ? name : 'oceano';");
+output = replaceStrict(output, "(themes[currentThemeName] || themes.militar).accent", "(themes[currentThemeName] || themes.oceano).accent");
+output = replaceStrict(output, "const theme = themes[currentThemeName] || themes.militar;", "const theme = themes[currentThemeName] || themes.oceano;");
+output = replaceStrict(output, ".replace(/const STORAGE_KEY = '[^']+';/, `const STORAGE_KEY = 'gymlog-ramon-state-v1';`)", ".replace(/const STORAGE_KEY = '[^']+';/, `const STORAGE_KEY = 'gymlog-web-state-v3';`)");
+output = replaceStrict(output, ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-ramon-theme-v1';`)", ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-web-theme-v4';`)");
+output = replaceStrict(output, ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-ramon-import-v1';`)", ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-web-import-v3';`)");
+output = replaceStrict(output, /<div class="health-connect-card">[\s\S]*?<div class="backup-card" style="margin-bottom:12px; align-items:stretch">/, `<div class="backup-card" style="margin-bottom:12px; align-items:stretch">
       <div>
         <div class="chart-title" style="margin:0">Cuenta y sincronizacion web</div>
         <div class="backup-copy">Tus datos se guardan automaticamente en la nube y se sincronizan en cualquier dispositivo donde inicies sesion. Sesion activa: <strong id="webAccountEmail">Sin sesion</strong>.</div>
@@ -230,13 +241,13 @@ output = output.replace(/<div class="health-connect-card">[\s\S]*?<div class="ba
     </div>
 
     <div class="backup-card" style="margin-bottom:12px; align-items:stretch">`);
-output = output.replace("Resumen rapido de copias, sincronizacion y sesiones recuperables.", "Resumen rapido de datos locales y sesiones eliminadas.");
-output = output.replace("Guarda o restaura todas tus rutinas, historial, peso, progreso, temas y datos de la app.", "Exporta o importa tus datos locales mientras terminamos la sincronizacion web.");
-output = output.replace("Exportar HTML completo", "Exportar HTML completo (avanzado)");
-output = output.replace("Sincronizar rutinas publicadas", "Recargar ejemplo publicado");
-output = output.replace("gymlog-ramon-backup-", "gymlog-web-backup-");
-output = output.replace(/<button class="ghost-btn" onclick="resetAllNotesTemplate\(\)">Restaurar plantilla<\/button>/, `<button class="ghost-btn" onclick="createNewNoteSection()">Nueva nota</button>`);
-output = output.replace(/<button class="ghost-btn" onclick="resetCurrentNoteTemplate\(\)">Restaurar esta nota<\/button>/, "");
+output = replaceStrict(output, "Resumen rapido de copias, sincronizacion y sesiones recuperables.", "Resumen rapido de datos locales y sesiones eliminadas.");
+output = replaceStrict(output, "Guarda o restaura todas tus rutinas, historial, peso, progreso, temas y datos de la app.", "Exporta o importa tus datos locales mientras terminamos la sincronizacion web.");
+output = replaceStrict(output, "Exportar HTML completo", "Exportar HTML completo (avanzado)");
+output = replaceStrict(output, "Sincronizar rutinas publicadas", "Recargar ejemplo publicado");
+output = replaceStrict(output, "gymlog-ramon-backup-", "gymlog-web-backup-");
+output = replaceStrict(output, /<button class="ghost-btn" onclick="resetAllNotesTemplate\(\)">Restaurar plantilla<\/button>/, `<button class="ghost-btn" onclick="createNewNoteSection()">Nueva nota</button>`);
+output = replaceStrict(output, /<button class="ghost-btn" onclick="resetCurrentNoteTemplate\(\)">Restaurar esta nota<\/button>/, "");
 output = replaceFunctionBody(output, "normalizeNotesSections", `  const customSections = Array.isArray(input) ? input : [];
   return customSections.map((section, index) => ({
     key: section?.key || \`note-\${index + 1}\`,
@@ -274,7 +285,7 @@ output = replaceFunctionBody(output, "renderNotes", `  const container = documen
       <div class="notes-render">\${renderNotesMarkdownLite(section.progressionText || '')}</div>
     </div>
   </section>\`).join('');`);
-output = output.replace("function openNotesSectionEditor(key){", `function createNewNoteSection(){
+output = replaceStrict(output, "function openNotesSectionEditor(key){", `function createNewNoteSection(){
   if(!state.settings) state.settings = {};
   const key = uid('note');
   const next = {
@@ -343,7 +354,7 @@ output = replaceFunctionBody(output, "saveNotesSectionEditor", `  const key = do
 ].forEach(([id, replacement]) => {
   output = replaceElementInnerById(output, id, replacement);
 });
-output = output.replace('onclick="loadDriveBackups()">Actualizar</button>', 'onclick="renderSecurityStatus()">Actualizar</button>');
+output = replaceStrict(output, 'onclick="loadDriveBackups()">Actualizar</button>', 'onclick="renderSecurityStatus()">Actualizar</button>');
 output = replaceFunctionBody(output, "renderSecurityStatus", `  const grid = document.getElementById('securityStatusGrid');
   if(!grid) return;
   pruneDeletedWorkoutLog();
@@ -356,11 +367,12 @@ output = replaceFunctionBody(output, "renderSecurityStatus", `  const grid = doc
     ['Papelera', trashCount ? trashCount + ' recuperables' : 'Vacia', trashCount ? 'warn' : 'ok']
   ];
   grid.innerHTML = items.map(([label,value,cls]) => \`<div class="security-item"><span>\${label}</span><strong class="\${cls}">\${value}</strong></div>\`).join('');`);
-output = output.replace(/<body>/, `<body>
+output = replaceStrict(output, /<body>/, `<body>
 <style id="gymlog-web-boot-cleanup">
   #phase-grid, #previewContent, #activeExercises, #routinesList, #logList, #notesContent, #notesSections { visibility: hidden; }
 </style>`);
-output = output.replace("if(!restoreActiveWorkout()) renderWorkoutGrid();", "if(!restoreActiveWorkout()) renderWorkoutGrid(); document.getElementById('gymlog-web-boot-cleanup')?.remove();");
+output = replaceStrict(output, "if(!restoreActiveWorkout()) renderWorkoutGrid();", "if(!restoreActiveWorkout()) renderWorkoutGrid(); document.getElementById('gymlog-web-boot-cleanup')?.remove();");
+// Limpieza opcional: puede no haber espacios finales, no debe romper el build.
 output = output.replace(/[ \t]+$/gm, "");
 
 fs.writeFileSync(targetPath, output, "utf8");
