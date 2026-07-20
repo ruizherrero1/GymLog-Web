@@ -4823,6 +4823,7 @@
         <div class="health-note" id="healthUserLabel"></div>
         <div class="health-actions">
           <button class="ghost-btn" id="connectGoogleHealthButton" onclick="connectGoogleHealth()">Conectar Google Health</button>
+          <button class="ghost-btn" id="connectGoogleDriveButton" onclick="connectGoogleDrive()">Conectar Google Drive</button>
           <button class="ghost-btn" id="syncLatestHealthButton" onclick="syncLatestWorkoutToHealth()">Sincronizar ultima sesion</button>
           <button class="ghost-btn" id="syncHistoryHealthButton" onclick="confirmAndSyncHistory()">Sincronizar historial</button>
           <button class="ghost-btn" id="retryHealthMetricsButton" onclick="retryHealthMetrics()">Actualizar metricas</button>
@@ -4964,8 +4965,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-07-20T16:24:36.631Z",
-      "updatedAt": "2026-07-20T16:24:36.631Z"
+      "createdAt": "2026-07-20T16:44:21.541Z",
+      "updatedAt": "2026-07-20T16:44:21.541Z"
     }
   ],
   "workoutLog": [],
@@ -9016,8 +9017,9 @@ const GYMLOG_HEALTH_FUNCTION = `${GYMLOG_SUPABASE_URL}/functions/v1/gymlog-googl
 let gymLogCloudClient = null;
 let gymLogCloudSession = null;
 let gymLogGoogleConnected = false;
+let gymLogDriveConnected = false;
 let gymLogHealthBusy = false;
-const GYMLOG_HEALTH_BUTTONS = ['connectGoogleHealthButton','syncLatestHealthButton','syncHistoryHealthButton','retryHealthMetricsButton','recoverFitbitMetricsButton','backupHealthButton','listDriveBackupsButton'];
+const GYMLOG_HEALTH_BUTTONS = ['connectGoogleHealthButton','connectGoogleDriveButton','syncLatestHealthButton','syncHistoryHealthButton','retryHealthMetricsButton','recoverFitbitMetricsButton','backupHealthButton','listDriveBackupsButton'];
 
 function setHealthActivity(message = '', busy = false){
   const note = document.getElementById('healthActivityNote');
@@ -9240,6 +9242,7 @@ function renderHealthSettings(){
   const signedIn = document.getElementById('healthSignedInPanel');
   const userLabel = document.getElementById('healthUserLabel');
   const connectButton = document.getElementById('connectGoogleHealthButton');
+  const driveButton = document.getElementById('connectGoogleDriveButton');
   const summary = document.getElementById('healthSyncSummary');
   if(!status || !signedOut || !signedIn) return;
   renderSecurityStatus();
@@ -9251,6 +9254,7 @@ function renderHealthSettings(){
   if(!loggedIn) return;
   userLabel.textContent = `Sesion privada: ${gymLogCloudSession.user?.email || 'usuario conectado'}`;
   connectButton.textContent = gymLogGoogleConnected ? 'Reconectar Google Health' : 'Conectar Google Health';
+  if(driveButton) driveButton.textContent = gymLogDriveConnected ? 'Reconectar Google Drive' : 'Conectar Google Drive';
   const synced = state.workoutLog.filter(log => healthForLog(log).syncStatus === 'synced').length;
   const pending = state.workoutLog.filter(log => ['ready','pending','error'].includes(healthForLog(log).syncStatus)).length;
   const withoutFitbitData = state.workoutLog.filter(log => {
@@ -9287,6 +9291,7 @@ async function signOutGymLog(){
   await gymLogCloudClient.auth.signOut();
   gymLogCloudSession = null;
   gymLogGoogleConnected = false;
+  gymLogDriveConnected = false;
   renderHealthSettings();
 }
 async function refreshGoogleHealthStatus(){
@@ -9294,6 +9299,7 @@ async function refreshGoogleHealthStatus(){
   try{
     const result = await healthFunctionRequest('status');
     gymLogGoogleConnected = !!result.connected;
+    gymLogDriveConnected = !!result.driveConnected;
   }catch(error){
     gymLogGoogleConnected = false;
     console.warn('No se pudo consultar Google Health.', error);
@@ -9327,6 +9333,22 @@ async function connectGoogleHealth(){
     alert(error.message);
   }
 }
+async function connectGoogleDrive(){
+  if(gymLogHealthBusy) return showToast('Google ya esta trabajando');
+  const button = document.getElementById('connectGoogleDriveButton');
+  const previousText = button?.textContent;
+  const finishBusy = setHealthBusy('connectGoogleDriveButton', 'Conectando...', 'Abriendo autorizacion de Google Drive...');
+  try{
+    const result = await healthFunctionRequest('authorize', { returnTo:window.location.origin + window.location.pathname, purpose:'drive' });
+    if(!result.authorizationUrl) throw new Error('No se recibio la URL de autorizacion.');
+    window.location.href = result.authorizationUrl;
+  }catch(error){
+    finishBusy();
+    if(button) button.textContent = previousText || 'Conectar Google Drive';
+    setHealthActivity('');
+    alert(error.message);
+  }
+}
 async function syncWorkoutToHealth(logId, options = {}){
   const log = state.workoutLog.find(entry => entry.id === logId);
   if(!log) return false;
@@ -9353,11 +9375,19 @@ async function syncWorkoutToHealth(logId, options = {}){
     save();
     renderProgress();
     renderHealthSettings();
+    let backupError = null;
     if(options.backup){
-      const backupResult = await healthFunctionRequest('backup', { backupState:state, backupMeta:buildDriveBackupMeta('auto'), reason:'auto' });
-      recordDriveBackupResult(backupResult, 'auto');
+      try{
+        const backupResult = await healthFunctionRequest('backup', { backupState:state, backupMeta:buildDriveBackupMeta('auto'), reason:'auto' });
+        recordDriveBackupResult(backupResult, 'auto');
+        gymLogDriveConnected = true;
+      }catch(error){
+        backupError = error;
+        gymLogDriveConnected = false;
+        console.warn('Sesion sincronizada; backup de Drive pendiente.', error);
+      }
     }
-    if(!options.silent) showToast('Sesion sincronizada');
+    if(!options.silent) showToast(backupError ? 'Sesion sincronizada; reconecta Google Drive para el backup' : 'Sesion sincronizada');
     return true;
   }catch(error){
     log.health = { ...health, syncStatus:'error', error:error.message, lastAttemptAt:new Date().toISOString() };
@@ -9484,6 +9514,7 @@ async function createDriveBackup(){
     setHealthActivity('Backup JSON guardado en Drive', false);
     showToast('Backup JSON guardado en Drive');
   }catch(error){
+    gymLogDriveConnected = false;
     setHealthActivity('No se pudo guardar el backup', false);
     alert(error.message);
   }finally{
@@ -9504,6 +9535,7 @@ async function loadDriveBackups(){
     renderSecurityStatus();
     setHealthActivity(`Backups cargados: ${(result.backups || []).length}`, false);
   }catch(error){
+    gymLogDriveConnected = false;
     setHealthActivity('No se pudieron cargar los backups', false);
     alert(error.message);
   }finally{
@@ -9790,8 +9822,13 @@ async function initializeGymLogCloud(){
   if(params.get('google_health') === 'connected'){
     showToast('Google Health conectado');
     params.delete('google_health');
-    history.replaceState({}, document.title, `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`);
   }
+  if(params.get('google_drive') === 'connected'){
+    gymLogDriveConnected = true;
+    showToast('Google Drive conectado');
+    params.delete('google_drive');
+  }
+  history.replaceState({}, document.title, `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`);
   if(gymLogGoogleConnected){
     for(const log of state.workoutLog.filter(item => healthForLog(item).autoSyncRequested && ['pending','error'].includes(healthForLog(item).syncStatus)).slice(0,3)){
       await syncWorkoutToHealth(log.id, { backup:true, silent:true });
