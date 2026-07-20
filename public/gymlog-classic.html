@@ -4802,11 +4802,42 @@
       </div>
     </div>
 
-    <div class="backup-card" style="margin-bottom:12px; align-items:stretch">
-      <div>
-        <div class="chart-title" style="margin:0">Cuenta y sincronizacion web</div>
-        <div class="backup-copy">Tus datos se guardan automaticamente en la nube y se sincronizan en cualquier dispositivo donde inicies sesion. Sesion activa: <strong id="webAccountEmail">Sin sesion</strong>.</div>
-        <button id="webAccountLogout" class="ghost-btn" style="margin-top:10px; display:none" onclick="signOutGymLogin()">Cerrar sesion</button>
+    <div class="health-connect-card">
+      <div class="health-connect-title">
+        <div class="chart-title" style="margin:0">Google Health + Fitbit Air</div>
+        <div class="health-status" id="healthConnectionStatus">Sin conectar</div>
+      </div>
+      <div class="backup-copy">Registra las sesiones de fuerza y recupera frecuencia cardiaca y zonas cuando Fitbit sincronice.</div>
+      <div id="healthSignedOutPanel">
+        <div class="health-auth-row">
+          <input class="health-auth-input" id="healthLoginEmail" type="email" inputmode="email" autocomplete="email" placeholder="Tu email de Google">
+          <button class="ghost-btn" onclick="sendGymLogEmailCode()">Enviar codigo</button>
+        </div>
+        <div class="health-auth-row">
+          <input class="health-auth-input" id="healthLoginCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="Codigo recibido por email">
+          <button class="ghost-btn" onclick="verifyGymLogEmailCode()">Validar codigo</button>
+        </div>
+        <div class="health-note">Recibiras un codigo por email. Introducelo aqui sin salir de la app.</div>
+      </div>
+      <div id="healthSignedInPanel" style="display:none">
+        <div class="health-note" id="healthUserLabel"></div>
+        <div class="health-actions">
+          <button class="ghost-btn" id="connectGoogleHealthButton" onclick="connectGoogleHealth()">Conectar Google Health</button>
+          <button class="ghost-btn" id="syncLatestHealthButton" onclick="syncLatestWorkoutToHealth()">Sincronizar ultima sesion</button>
+          <button class="ghost-btn" id="syncHistoryHealthButton" onclick="confirmAndSyncHistory()">Sincronizar historial</button>
+          <button class="ghost-btn" id="retryHealthMetricsButton" onclick="retryHealthMetrics()">Actualizar metricas</button>
+          <button class="ghost-btn" id="recoverFitbitMetricsButton" onclick="recoverMissingFitbitData()">Recuperar FC pendiente</button>
+          <button class="ghost-btn" id="backupHealthButton" onclick="createDriveBackup()">Backup JSON ahora</button>
+          <button class="ghost-btn" id="listDriveBackupsButton" onclick="loadDriveBackups()">Ver backups Drive</button>
+          <button class="ghost-btn" onclick="signOutGymLog()">Cerrar sesion</button>
+        </div>
+        <div class="drive-backup-panel" id="driveBackupPanel">
+          <div class="chart-title" style="font-size:16px;margin-bottom:2px">Backups en Drive</div>
+          <div class="backup-copy">Se conservan automaticamente las ultimas 5 copias JSON. Al restaurar, primero se guarda una copia del estado actual.</div>
+          <div class="drive-backup-list" id="driveBackupList"></div>
+        </div>
+        <div class="health-note" id="healthActivityNote"></div>
+        <div class="health-note" id="healthSyncSummary">Las sesiones nuevas se sincronizaran automaticamente al finalizar.</div>
       </div>
     </div>
 
@@ -4933,8 +4964,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-06-11T08:54:31.114Z",
-      "updatedAt": "2026-06-11T08:54:31.114Z"
+      "createdAt": "2026-07-20T16:24:36.631Z",
+      "updatedAt": "2026-07-20T16:24:36.631Z"
     }
   ],
   "workoutLog": [],
@@ -8979,8 +9010,8 @@ function startRoutineFromNotes(id){
 }
 
 // GOOGLE HEALTH + DRIVE SYNC
-const GYMLOG_SUPABASE_URL = 'https://tnuohiyrwnoqsnxyfonn.supabase.co';
-const GYMLOG_SUPABASE_KEY = 'sb_publishable__hfnlx_lrL6XI05FZyITLA_L6aUzK2A';
+const GYMLOG_SUPABASE_URL = 'https://qserywqzvluqfrnyeggz.supabase.co';
+const GYMLOG_SUPABASE_KEY = 'sb_publishable_l25PyMak_ttZ9ElV_FilPw_1J8lFZma';
 const GYMLOG_HEALTH_FUNCTION = `${GYMLOG_SUPABASE_URL}/functions/v1/gymlog-google`;
 let gymLogCloudClient = null;
 let gymLogCloudSession = null;
@@ -9639,6 +9670,19 @@ function showLoginEmailStep(){
   const inp = document.getElementById('loginEmailInput');
   if(inp){ inp.value=''; inp.focus(); }
 }
+async function loginWithGymPassword(){
+  if(!gymLogCloudClient) return;
+  const email = document.getElementById('loginEmailInput')?.value?.trim();
+  const password = document.getElementById('loginPasswordInput')?.value || '';
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setLoginMsg('Introduce un email válido.', true);
+  if(!password) return setLoginMsg('Introduce tu contraseña.', true);
+  setLoginBusy(true);
+  setLoginMsg('Accediendo...', false);
+  const { error } = await gymLogCloudClient.auth.signInWithPassword({ email, password });
+  setLoginBusy(false);
+  if(error) return setLoginMsg('Email o contraseña incorrectos.', true);
+  setLoginMsg('Acceso correcto. Cargando tus datos...', false);
+}
 async function sendGymLoginOtp(){
   if(!gymLogCloudClient) return;
   const email = document.getElementById('loginEmailInput')?.value?.trim();
@@ -9823,8 +9867,9 @@ document.addEventListener('touchend', e => {
         <span style="color:#6B7280; font-size:0.75rem;">o con email</span>
         <div style="flex:1; height:1px; background:#374151;"></div>
       </div>
-      <input id="loginEmailInput" type="email" placeholder="tu@email.com" autocomplete="email" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')sendGymLoginOtp()">
-      <button onclick="sendGymLoginOtp()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; box-sizing:border-box;">Enviar enlace de acceso</button>
+      <input id="loginEmailInput" type="email" placeholder="tu@email.com" autocomplete="email" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')document.getElementById('loginPasswordInput')?.focus()">
+      <input id="loginPasswordInput" type="password" placeholder="Contraseña" autocomplete="current-password" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')loginWithGymPassword()">
+      <button onclick="loginWithGymPassword()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; box-sizing:border-box;">Entrar</button>
     </div>
     <div id="loginStepOtp" style="display:none;">
       <div style="font-size:2rem; text-align:center; margin-bottom:0.75rem;">📩</div>

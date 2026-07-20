@@ -221,8 +221,6 @@ output = replaceStrict(output, "const IMPORT_VERSION = 'gymlog-ramon-import-v1';
 output = replaceStrict(output, "const ACTIVE_WORKOUT_KEY = 'gymlog-ramon-active-workout-v1';", "const ACTIVE_WORKOUT_KEY = 'gymlog-web-active-workout-v3';");
 output = replaceStrict(output, "const LEGACY_STORAGE_KEYS = ['gymlog2-export-1777218631114'];", "const LEGACY_STORAGE_KEYS = [];");
 output = replaceStrict(output, "const LEGACY_THEME_KEYS = ['gymlog-theme-export-1777218631114'];", "const LEGACY_THEME_KEYS = [];");
-output = replaceStrict(output, "const GYMLOG_SUPABASE_URL = 'https://qserywqzvluqfrnyeggz.supabase.co';", "const GYMLOG_SUPABASE_URL = 'https://tnuohiyrwnoqsnxyfonn.supabase.co';");
-output = replaceStrict(output, "const GYMLOG_SUPABASE_KEY = 'sb_publishable_l25PyMak_ttZ9ElV_FilPw_1J8lFZma';", "const GYMLOG_SUPABASE_KEY = 'sb_publishable__hfnlx_lrL6XI05FZyITLA_L6aUzK2A';");
 output = replaceStrict(output, "if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){", "if(false && 'serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){");
 // Cloud sync + login gate stay enabled in the public build (multi-user via Supabase).
 output = replaceStrict(output, 'return "grafito";', 'return "oceano";');
@@ -232,15 +230,6 @@ output = replaceStrict(output, "const theme = themes[currentThemeName] || themes
 output = replaceStrict(output, ".replace(/const STORAGE_KEY = '[^']+';/, `const STORAGE_KEY = 'gymlog-ramon-state-v1';`)", ".replace(/const STORAGE_KEY = '[^']+';/, `const STORAGE_KEY = 'gymlog-web-state-v3';`)");
 output = replaceStrict(output, ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-ramon-theme-v1';`)", ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-web-theme-v4';`)");
 output = replaceStrict(output, ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-ramon-import-v1';`)", ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-web-import-v3';`)");
-output = replaceStrict(output, /<div class="health-connect-card">[\s\S]*?<div class="backup-card" style="margin-bottom:12px; align-items:stretch">/, `<div class="backup-card" style="margin-bottom:12px; align-items:stretch">
-      <div>
-        <div class="chart-title" style="margin:0">Cuenta y sincronizacion web</div>
-        <div class="backup-copy">Tus datos se guardan automaticamente en la nube y se sincronizan en cualquier dispositivo donde inicies sesion. Sesion activa: <strong id="webAccountEmail">Sin sesion</strong>.</div>
-        <button id="webAccountLogout" class="ghost-btn" style="margin-top:10px; display:none" onclick="signOutGymLogin()">Cerrar sesion</button>
-      </div>
-    </div>
-
-    <div class="backup-card" style="margin-bottom:12px; align-items:stretch">`);
 output = replaceStrict(output, "Resumen rapido de copias, sincronizacion y sesiones recuperables.", "Resumen rapido de datos locales y sesiones eliminadas.");
 output = replaceStrict(output, "Guarda o restaura todas tus rutinas, historial, peso, progreso, temas y datos de la app.", "Exporta o importa tus datos locales mientras terminamos la sincronizacion web.");
 output = replaceStrict(output, "Exportar HTML completo", "Exportar HTML completo (avanzado)");

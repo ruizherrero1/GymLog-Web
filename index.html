@@ -9662,6 +9662,19 @@ function showLoginEmailStep(){
   const inp = document.getElementById('loginEmailInput');
   if(inp){ inp.value=''; inp.focus(); }
 }
+async function loginWithGymPassword(){
+  if(!gymLogCloudClient) return;
+  const email = document.getElementById('loginEmailInput')?.value?.trim();
+  const password = document.getElementById('loginPasswordInput')?.value || '';
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setLoginMsg('Introduce un email válido.', true);
+  if(!password) return setLoginMsg('Introduce tu contraseña.', true);
+  setLoginBusy(true);
+  setLoginMsg('Accediendo...', false);
+  const { error } = await gymLogCloudClient.auth.signInWithPassword({ email, password });
+  setLoginBusy(false);
+  if(error) return setLoginMsg('Email o contraseña incorrectos.', true);
+  setLoginMsg('Acceso correcto. Cargando tus datos...', false);
+}
 async function sendGymLoginOtp(){
   if(!gymLogCloudClient) return;
   const email = document.getElementById('loginEmailInput')?.value?.trim();
@@ -9846,8 +9859,9 @@ document.addEventListener('touchend', e => {
         <span style="color:#6B7280; font-size:0.75rem;">o con email</span>
         <div style="flex:1; height:1px; background:#374151;"></div>
       </div>
-      <input id="loginEmailInput" type="email" placeholder="tu@email.com" autocomplete="email" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')sendGymLoginOtp()">
-      <button onclick="sendGymLoginOtp()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; box-sizing:border-box;">Enviar enlace de acceso</button>
+      <input id="loginEmailInput" type="email" placeholder="tu@email.com" autocomplete="email" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')document.getElementById('loginPasswordInput')?.focus()">
+      <input id="loginPasswordInput" type="password" placeholder="Contraseña" autocomplete="current-password" style="width:100%; padding:0.75rem 1rem; background:#111827; color:#F3F4F6; border:1px solid #374151; border-radius:0.625rem; font-size:0.9rem; margin-bottom:0.75rem; box-sizing:border-box; outline:none;" onkeydown="if(event.key==='Enter')loginWithGymPassword()">
+      <button onclick="loginWithGymPassword()" style="width:100%; padding:0.75rem; background:#F97316; color:#fff; border:none; border-radius:0.625rem; cursor:pointer; font-size:0.9rem; font-weight:600; box-sizing:border-box;">Entrar</button>
     </div>
     <div id="loginStepOtp" style="display:none;">
       <div style="font-size:2rem; text-align:center; margin-bottom:0.75rem;">📩</div>
