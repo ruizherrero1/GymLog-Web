@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'gymlog-web-v3-20260720';
+const CACHE_VERSION = 'gymlog-web-v4-20260720-routines';
 const APP_SHELL = [
   '/',
   '/gymlog-classic.html',
@@ -8,6 +8,12 @@ const APP_SHELL = [
   '/icons/gym-icon.svg',
   '/icons/gym-logo.jpg'
 ];
+const NETWORK_FIRST_PATHS = new Set([
+  '/gymlog-classic.html',
+  '/gymlog-reliability.js',
+  '/gymlog-note-templates.js',
+  '/manifest.webmanifest'
+]);
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.addAll(APP_SHELL)));
@@ -45,6 +51,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Startup code must not remain pinned to an older cached release. Fall back
+  // to cache only when the device is offline.
+  if(NETWORK_FIRST_PATHS.has(url.pathname)){
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if(response.ok) caches.open(CACHE_VERSION).then(cache => cache.put(request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
   event.respondWith(
     caches.match(request).then(cached => {
       const network = fetch(request).then(response => {
