@@ -15,6 +15,32 @@
   let nextSnapshotReason = null;
   let recoveryRunning = false;
 
+  const STARTUP_HIDDEN_IDS = [
+    'phase-grid',
+    'previewContent',
+    'activeExercises',
+    'routinesList',
+    'logList',
+    'notesContent',
+    'notesSections'
+  ];
+
+  function revealAppContent(){
+    document.getElementById('gymlog-web-boot-cleanup')?.remove();
+    STARTUP_HIDDEN_IDS.forEach(id => document.getElementById(id)?.style.removeProperty('visibility'));
+  }
+
+  function refreshCloudUi(){
+    try{
+      if(typeof refreshUiAfterSync === 'function') refreshUiAfterSync();
+      else if(!restoreActiveWorkout()) renderWorkoutGrid();
+    }finally{
+      // The classic page hides data until startup completes. This reliability
+      // layer replaces its cloud loader, so it must also release that guard.
+      revealAppContent();
+    }
+  }
+
   function clone(value){
     return typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value));
   }
@@ -146,8 +172,7 @@
           preserveRecoveryState('remote-before-merge', data.data);
           state = pending.revision === cloudRevision ? clone(pending.state) : mergeStates(data.data, pending.state);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-          if(typeof refreshUiAfterSync === 'function') refreshUiAfterSync();
-          else if(!restoreActiveWorkout()) renderWorkoutGrid();
+          refreshCloudUi();
           setCloudStatus('pending', 'Nube: recuperando cambios');
           await saveUserCloudState({ immediate:true });
           showToast('Cambios locales recuperados y sincronizados');
@@ -155,8 +180,7 @@
         }
         state = { ...state, ...data.data };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        if(typeof refreshUiAfterSync === 'function') refreshUiAfterSync();
-        else if(!restoreActiveWorkout()) renderWorkoutGrid();
+        refreshCloudUi();
         setCloudStatus('ok', `Nube ✓ r${cloudRevision}`);
         showToast('✓ Datos cargados desde la nube');
       }else{
@@ -195,7 +219,7 @@
     cloudUpdatedAt = result.updatedAt || new Date().toISOString();
     const pending = readPendingState();
     if(!pending || pending.sequence <= savedSequence) localStorage.removeItem(PENDING_STATE_KEY);
-    if(typeof refreshUiAfterSync === 'function') refreshUiAfterSync();
+    refreshCloudUi();
     setCloudStatus('ok', `Nube ✓ r${cloudRevision}`);
     showToast('Cambios de dos dispositivos combinados sin perder sesiones');
   }
@@ -629,7 +653,7 @@
   window.addEventListener('keydown',event=>{ if(event.key==='Escape') closeHeartRateDetails(); });
 
   async function bootReliability(){
-    installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); await registerPwa();
+    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); await registerPwa();
     setTimeout(async()=>{ await loadHealthProfile(); renderHealthSettings(); processHealthRecoveryQueue(); },2500);
     setInterval(processHealthRecoveryQueue,5*60*1000);
   }
