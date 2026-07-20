@@ -1,0 +1,39 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const root = process.cwd();
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const html = read('public/gymlog-classic.html');
+const reliability = read('public/gymlog-reliability.js');
+const templates = read('public/gymlog-note-templates.js');
+
+const failures = [];
+const check = (condition, message) => { if(!condition) failures.push(message); };
+const occurrences = (source, value) => source.split(value).length - 1;
+
+check(occurrences(html, '<script src="/gymlog-reliability.js"></script>') === 1, 'El módulo reliability debe cargarse una vez.');
+check(occurrences(html, '<script src="/gymlog-note-templates.js"></script>') === 1, 'El catálogo de notas debe cargarse una vez.');
+check(html.includes("if('serviceWorker' in navigator"), 'El HTML generado debe registrar el service worker.');
+check(!html.includes("if(false && 'serviceWorker'"), 'El service worker no puede quedar desactivado.');
+check(html.includes("['Ultimo backup'"), 'El panel rico de seguridad debe conservarse.');
+check(!html.includes("['Cuenta web', 'Pendiente de diseno'"), 'No debe reaparecer el estado web obsoleto.');
+check(html.includes("'gymlog-ramon-state-v1'"), 'Debe mantenerse la migración localStorage antigua.');
+check(!/[A-Z0-9._%+-]+@gmail\.com/i.test(html), "El HTML público no debe contener emails personales.");
+check(!/(?:password|contraseña)\s*[:=]\s*(?:\x22|\x27)[^\x22\x27]{4,}(?:\x22|\x27)/i.test(html), "El HTML público no debe contener contraseñas embebidas.");
+check((templates.match(/key:'(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo|compras)'/g) || []).length === 8, 'Deben existir las 8 plantillas clásicas.');
+check(reliability.includes('p_expected_revision:cloudRevision'), 'El guardado debe usar revisión esperada.');
+check(reliability.includes("p_snapshot_reason:'automatic-conflict-merge'"), 'Los conflictos deben crear snapshot.');
+check(reliability.includes('15*60*1000,2*60*60*1000,24*60*60*1000'), 'La recuperación Health debe programar 15 min, 2 h y 24 h.');
+
+for(const file of ['public/gymlog-reliability.js','public/gymlog-note-templates.js','public/service-worker.js','scripts/prepare-classic-web.mjs']){
+  const result = spawnSync(process.execPath, ['--check', file], { cwd:root, encoding:'utf8' });
+  check(result.status === 0, `${file} no supera node --check: ${result.stderr}`);
+}
+
+if(failures.length){
+  console.error(failures.map(item => `- ${item}`).join('\n'));
+  process.exit(1);
+}
+
+console.log('Reliability checks passed: cloud revisions, privacy, PWA, Health recovery and classic templates.');

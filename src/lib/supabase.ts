@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
 
-const defaultSupabaseUrl = "https://tnuohiyrwnoqsnxyfonn.supabase.co";
-const defaultSupabasePublishableKey = "sb_publishable__hfnlx_lrL6XI05FZyITLA_L6aUzK2A";
+const defaultSupabaseUrl = "https://qserywqzvluqfrnyeggz.supabase.co";
+const defaultSupabasePublishableKey = "sb_publishable_l25PyMak_ttZ9ElV_FilPw_1J8lFZma";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? defaultSupabaseUrl;
 const supabasePublishableKey =
