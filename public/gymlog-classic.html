@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es" style="--bg: #111827; --surface: #1F2937; --card: #273449; --border: #3B4A63; --accent: #F97316; --accent2: #FDBA74; --text: #F3F4F6; --muted: #9CA3AF; --done: #34D399;"><head>
 <meta charset="UTF-8">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/gym-logo.jpg">
@@ -4849,7 +4849,7 @@
             <div class="chart-title" style="margin-bottom:2px">Estado de seguridad</div>
             <div class="backup-copy">Resumen rapido de datos locales y sesiones eliminadas.</div>
           </div>
-          <button class="ghost-btn" onclick="renderSecurityStatus()">Actualizar</button>
+          <button class="ghost-btn" onclick="loadDriveBackups()">Actualizar</button>
         </div>
         <div class="security-grid" id="securityStatusGrid"></div>
         <div class="drive-backup-panel open" id="trashPanel" style="display:block">
@@ -4863,7 +4863,7 @@
     <div class="backup-card" style="margin-bottom:0">
       <div>
         <div class="chart-title" style="margin-bottom:2px">Copia de seguridad</div>
-        <div class="backup-copy">Exporta o importa tus datos locales mientras terminamos la sincronizacion web.</div>
+        <div class="backup-copy">Exporta o importa una copia local adicional; la sincronizacion privada con Supabase sigue activa.</div>
       </div>
       <div class="toolbar-row wrap">
         <button class="ghost-btn" onclick="exportData(); closeModal('overlaySettings')">Exportar JSON</button>
@@ -4884,8 +4884,8 @@ const STORAGE_KEY = 'gymlog-web-state-v3';
 const THEME_KEY = 'gymlog-web-theme-v4';
 const IMPORT_VERSION = 'gymlog-web-import-v3';
 const ACTIVE_WORKOUT_KEY = 'gymlog-web-active-workout-v3';
-const LEGACY_STORAGE_KEYS = [];
-const LEGACY_THEME_KEYS = [];
+const LEGACY_STORAGE_KEYS = ['gymlog-web-state-v2','gymlog-web-state-v1','gymlog-ramon-state-v1','gymlog2-export-1777218631114'];
+const LEGACY_THEME_KEYS = ['gymlog-web-theme-v3','gymlog-web-theme-v2','gymlog-ramon-theme-v1','gymlog-theme-export-1777218631114'];
 const EMBEDDED_SIGNATURE_KEY = `${STORAGE_KEY}-embedded-signature`;
 const importedState = {
   "routines": [
@@ -4965,8 +4965,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-07-20T16:44:21.541Z",
-      "updatedAt": "2026-07-20T16:44:21.541Z"
+      "createdAt": "2026-07-20T17:53:59.773Z",
+      "updatedAt": "2026-07-20T17:53:59.773Z"
     }
   ],
   "workoutLog": [],
@@ -9201,15 +9201,31 @@ function renderSecurityStatus(){
   const grid = document.getElementById('securityStatusGrid');
   if(!grid) return;
   pruneDeletedWorkoutLog();
-  const sessionCount = state.workoutLog?.length || 0;
+  const lastBackup = state.settings?.lastDriveBackup || null;
+  const backupAge = daysSinceIso(lastBackup?.savedAt);
+  const synced = state.workoutLog.filter(log => healthForLog(log).syncStatus === 'synced').length;
+  const pending = state.workoutLog.filter(log => ['ready','pending','error'].includes(healthForLog(log).syncStatus)).length;
+  const missingFitbit = state.workoutLog.filter(log => {
+    const health = healthForLog(log);
+    return health.syncStatus === 'synced' && health.metricsStatus === 'pending';
+  }).length;
   const trashCount = state.deletedWorkoutLog?.length || 0;
+  const backupText = lastBackup?.savedAt ? `${formatBackupDate(lastBackup.savedAt)}` : 'Sin backup reciente';
   const items = [
-    ['Cuenta web', 'Pendiente de diseno', 'warn'],
-    ['Datos locales', sessionCount ? sessionCount + ' sesiones' : 'Sin historial', 'ok'],
-    ['Rutinas', (state.routines?.length || 0) + ' disponibles', 'ok'],
-    ['Papelera', trashCount ? trashCount + ' recuperables' : 'Vacia', trashCount ? 'warn' : 'ok']
+    ['Ultimo backup', backupText, securityValueClass('backup', backupAge)],
+    ['Backups Drive', `${state.settings?.driveBackupCount ?? 'sin cargar'}`, 'ok'],
+    ['Google Health', gymLogGoogleConnected ? `${synced} sincronizadas` : 'Sin conectar', gymLogGoogleConnected ? 'ok' : 'warn'],
+    ['Pendientes', `${pending} sesiones`, securityValueClass('pending', pending)],
+    ['Sin Fitbit', `${missingFitbit} sesiones`, securityValueClass('missing', missingFitbit)],
+    ['Papelera', `${trashCount} recuperables`, securityValueClass('trash', trashCount)]
   ];
-  grid.innerHTML = items.map(([label,value,cls]) => `<div class="security-item"><span>${label}</span><strong class="${cls}">${value}</strong></div>`).join('');
+  grid.innerHTML = items.map(([label, value, cls]) => `
+    <div class="security-item">
+      <div class="security-label">${escapeHtml(label)}</div>
+      <div class="security-value ${cls}">${escapeHtml(value)}</div>
+    </div>
+  `).join('');
+  renderTrashPanel();
 }
 function renderTrashPanel(){
   const list = document.getElementById('trashList');
@@ -9841,7 +9857,7 @@ document.getElementById('focusTimerOverlay')?.addEventListener('click', (event)=
 
 // INIT
 initTheme();
-if(false && 'serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){
+if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js').catch(error => {
       console.warn('No se pudo registrar el service worker.', error);
@@ -9921,4 +9937,6 @@ document.addEventListener('touchend', e => {
     <div id="loginMsg" style="display:none; text-align:center; margin-top:0.75rem; font-size:0.8rem;"></div>
   </div>
 </div>
+<script src="/gymlog-note-templates.js"></script>
+<script src="/gymlog-reliability.js"></script>
 </body></html>

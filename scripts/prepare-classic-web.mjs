@@ -219,9 +219,8 @@ output = replaceStrict(output, "const STORAGE_KEY = 'gymlog-ramon-state-v1';", "
 output = replaceStrict(output, "const THEME_KEY = 'gymlog-ramon-theme-v1';", "const THEME_KEY = 'gymlog-web-theme-v4';");
 output = replaceStrict(output, "const IMPORT_VERSION = 'gymlog-ramon-import-v1';", "const IMPORT_VERSION = 'gymlog-web-import-v3';");
 output = replaceStrict(output, "const ACTIVE_WORKOUT_KEY = 'gymlog-ramon-active-workout-v1';", "const ACTIVE_WORKOUT_KEY = 'gymlog-web-active-workout-v3';");
-output = replaceStrict(output, "const LEGACY_STORAGE_KEYS = ['gymlog2-export-1777218631114'];", "const LEGACY_STORAGE_KEYS = [];");
-output = replaceStrict(output, "const LEGACY_THEME_KEYS = ['gymlog-theme-export-1777218631114'];", "const LEGACY_THEME_KEYS = [];");
-output = replaceStrict(output, "if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){", "if(false && 'serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){");
+output = replaceStrict(output, "const LEGACY_STORAGE_KEYS = ['gymlog2-export-1777218631114'];", "const LEGACY_STORAGE_KEYS = ['gymlog-web-state-v2','gymlog-web-state-v1','gymlog-ramon-state-v1','gymlog2-export-1777218631114'];");
+output = replaceStrict(output, "const LEGACY_THEME_KEYS = ['gymlog-theme-export-1777218631114'];", "const LEGACY_THEME_KEYS = ['gymlog-web-theme-v3','gymlog-web-theme-v2','gymlog-ramon-theme-v1','gymlog-theme-export-1777218631114'];");
 // Cloud sync + login gate stay enabled in the public build (multi-user via Supabase).
 output = replaceStrict(output, 'return "grafito";', 'return "oceano";');
 output = replaceStrict(output, "currentThemeName = name in themes ? name : 'militar';", "currentThemeName = name in themes ? name : 'oceano';");
@@ -231,7 +230,7 @@ output = replaceStrict(output, ".replace(/const STORAGE_KEY = '[^']+';/, `const 
 output = replaceStrict(output, ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-ramon-theme-v1';`)", ".replace(/const THEME_KEY = '[^']+';/, `const THEME_KEY = 'gymlog-web-theme-v4';`)");
 output = replaceStrict(output, ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-ramon-import-v1';`)", ".replace(/const IMPORT_VERSION = '[^']+';/, `const IMPORT_VERSION = 'gymlog-web-import-v3';`)");
 output = replaceStrict(output, "Resumen rapido de copias, sincronizacion y sesiones recuperables.", "Resumen rapido de datos locales y sesiones eliminadas.");
-output = replaceStrict(output, "Guarda o restaura todas tus rutinas, historial, peso, progreso, temas y datos de la app.", "Exporta o importa tus datos locales mientras terminamos la sincronizacion web.");
+output = replaceStrict(output, "Guarda o restaura todas tus rutinas, historial, peso, progreso, temas y datos de la app.", "Exporta o importa una copia local adicional; la sincronizacion privada con Supabase sigue activa.");
 output = replaceStrict(output, "Exportar HTML completo", "Exportar HTML completo (avanzado)");
 output = replaceStrict(output, "Sincronizar rutinas publicadas", "Recargar ejemplo publicado");
 output = replaceStrict(output, "gymlog-ramon-backup-", "gymlog-web-backup-");
@@ -343,19 +342,6 @@ output = replaceFunctionBody(output, "saveNotesSectionEditor", `  const key = do
 ].forEach(([id, replacement]) => {
   output = replaceElementInnerById(output, id, replacement);
 });
-output = replaceStrict(output, 'onclick="loadDriveBackups()">Actualizar</button>', 'onclick="renderSecurityStatus()">Actualizar</button>');
-output = replaceFunctionBody(output, "renderSecurityStatus", `  const grid = document.getElementById('securityStatusGrid');
-  if(!grid) return;
-  pruneDeletedWorkoutLog();
-  const sessionCount = state.workoutLog?.length || 0;
-  const trashCount = state.deletedWorkoutLog?.length || 0;
-  const items = [
-    ['Cuenta web', 'Pendiente de diseno', 'warn'],
-    ['Datos locales', sessionCount ? sessionCount + ' sesiones' : 'Sin historial', 'ok'],
-    ['Rutinas', (state.routines?.length || 0) + ' disponibles', 'ok'],
-    ['Papelera', trashCount ? trashCount + ' recuperables' : 'Vacia', trashCount ? 'warn' : 'ok']
-  ];
-  grid.innerHTML = items.map(([label,value,cls]) => \`<div class="security-item"><span>\${label}</span><strong class="\${cls}">\${value}</strong></div>\`).join('');`);
 output = replaceStrict(output, /<body>/, `<body>
 <style id="gymlog-web-boot-cleanup">
   #phase-grid, #previewContent, #activeExercises, #routinesList, #logList, #notesContent, #notesSections { visibility: hidden; }
