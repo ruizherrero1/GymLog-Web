@@ -35,11 +35,18 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v6-20260721-quick-input'), 'La mejora de inputs debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v7-20260721-mobile-workout-tools'), 'Los controles moviles deben invalidar la cache PWA anterior.');
 check(reliability.includes('beginQuickReplaceSeriesInput(input)'), 'Los campos de series deben vaciarse al recibir foco.');
 check(reliability.includes('input.dataset.quickReplaceValue = input.value'), 'El valor anterior debe conservarse como respaldo.');
 check(reliability.includes("if(input.value.trim() === '') input.value = input.dataset.quickReplaceValue || ''"), 'Salir sin escribir debe restaurar el valor anterior.');
 check(reliability.includes('.series-input[type="number"]:not(:disabled)'), 'El reemplazo rapido solo debe afectar peso y repeticiones durante el entreno.');
+check(reliability.includes('const MANUAL_REST_SECONDS = 90'), 'El descanso manual debe usar 90 segundos.');
+check(reliability.includes('window.startManualRestTimer = startManualRestTimer'), 'El descanso solo debe comenzar desde su boton manual.');
+check(reliability.includes("if(typeof playTimerBeep === 'function') playTimerBeep()"), 'El descanso debe emitir el sonido configurado al terminar.');
+check(reliability.includes("const delta = field === 'weight' ? 2.5 : 1"), 'Los ajustes rapidos deben usar 2,5 kg y 1 repeticion.');
+check(reliability.includes("wrapper.className = 'gym-series-stepper'"), 'Los ajustes deben integrarse dentro del campo para conservar el ancho movil.');
+check(reliability.includes('function undoGymWorkoutAction()'), 'El entreno debe permitir deshacer la ultima accion.');
+check(reliability.includes('workoutData = clone(lastWorkoutAction.workoutData)'), 'Deshacer debe restaurar una copia segura del entreno.');
 
 for(const file of ['public/gymlog-reliability.js','public/gymlog-note-templates.js','public/service-worker.js','scripts/prepare-classic-web.mjs']){
   const result = spawnSync(process.execPath, ['--check', file], { cwd:root, encoding:'utf8' });

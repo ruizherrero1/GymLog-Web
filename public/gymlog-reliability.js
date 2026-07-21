@@ -292,10 +292,60 @@
     };
   }
 
+  const MANUAL_REST_SECONDS = 90;
+  let manualRestEndsAt = 0;
+  let manualRestInterval = null;
+  let lastWorkoutAction = null;
+
+  function rememberWorkoutAction(label){
+    if(!currentRoutineId || !workoutData) return;
+    lastWorkoutAction = { routineId:currentRoutineId, workoutData:clone(workoutData), label };
+  }
+  function clearWorkoutAction(){ lastWorkoutAction = null; }
+  function undoGymWorkoutAction(){
+    if(!lastWorkoutAction || lastWorkoutAction.routineId !== currentRoutineId){
+      clearWorkoutAction(); updateWorkoutToolsUi(); return;
+    }
+    const label = lastWorkoutAction.label;
+    workoutData = clone(lastWorkoutAction.workoutData);
+    clearWorkoutAction();
+    persistActiveWorkout();
+    renderActiveExercises();
+    showToast('Deshecho: ' + label);
+  }
+  window.undoGymWorkoutAction = undoGymWorkoutAction;
+
   const baseUpdateSeriesQuickReplace = updateSeries;
   updateSeries = function(exId,idx,field,value){
     if(value === null || value === undefined || String(value).trim() === '') return;
+    const parsed = field === 'weight' ? parseFloat(value) : parseInt(value,10);
+    const next = Number.isFinite(parsed) ? parsed : 0;
+    if(workoutData?.[exId]?.series?.[idx]?.[field] !== next){
+      rememberWorkoutAction(field === 'weight' ? 'cambio de peso' : 'cambio de repeticiones');
+    }
     return baseUpdateSeriesQuickReplace.apply(this,arguments);
+  };
+
+  const baseUpdateSeriesTimeUndo = updateSeriesTime;
+  updateSeriesTime = function(exId,idx,value){
+    const next = parseDurationInput(value);
+    if(workoutData?.[exId]?.series?.[idx]?.duration !== next) rememberWorkoutAction('cambio de tiempo');
+    return baseUpdateSeriesTimeUndo.apply(this,arguments);
+  };
+  const baseTickSeriesUndo = tickSeries;
+  tickSeries = function(exId,idx){
+    if(workoutData?.[exId]?.series?.[idx]) rememberWorkoutAction('marcado de serie');
+    return baseTickSeriesUndo.apply(this,arguments);
+  };
+  const baseToggleAllSeriesUndo = toggleAllSeries;
+  toggleAllSeries = function(exId){
+    if(workoutData?.[exId]?.series?.length) rememberWorkoutAction('marcado del ejercicio');
+    return baseToggleAllSeriesUndo.apply(this,arguments);
+  };
+  const baseAddSeriesUndo = addSeries;
+  addSeries = function(exId){
+    if(workoutData?.[exId]) rememberWorkoutAction('serie añadida');
+    return baseAddSeriesUndo.apply(this,arguments);
   };
 
   function isQuickReplaceSeriesInput(target){
@@ -332,6 +382,167 @@
   document.addEventListener('keydown',event=>{
     if(event.key === 'Enter' && isQuickReplaceSeriesInput(event.target)) event.target.blur();
   });
+  function restSecondsRemaining(){
+    return manualRestEndsAt ? Math.max(0,Math.ceil((manualRestEndsAt-Date.now())/1000)) : 0;
+  }
+  function formatRestSeconds(seconds){
+    const safe = Math.max(0,Number(seconds)||0);
+    return Math.floor(safe/60) + ':' + String(safe%60).padStart(2,'0');
+  }
+  function updateWorkoutToolsUi(){
+    const restButton = document.getElementById('gymManualRestButton');
+    const cancelButton = document.getElementById('gymManualRestCancel');
+    const undoButton = document.getElementById('gymUndoWorkoutButton');
+    const remaining = restSecondsRemaining();
+    if(restButton){
+      restButton.textContent = 'Descanso ' + formatRestSeconds(remaining || MANUAL_REST_SECONDS);
+      restButton.classList.toggle('running',remaining>0);
+      restButton.disabled = remaining>0;
+      restButton.setAttribute('aria-label',remaining ? 'Descanso en curso, quedan ' + remaining + ' segundos' : 'Iniciar descanso de 90 segundos');
+    }
+    if(cancelButton) cancelButton.hidden = !remaining;
+    if(undoButton){
+      const available = !!lastWorkoutAction && lastWorkoutAction.routineId === currentRoutineId;
+      undoButton.disabled = !available;
+      undoButton.title = available ? 'Deshacer ' + lastWorkoutAction.label : 'No hay acciones para deshacer';
+    }
+  }
+  function finishManualRestTimer(){
+    if(manualRestInterval) clearInterval(manualRestInterval);
+    manualRestInterval = null;
+    manualRestEndsAt = 0;
+    updateWorkoutToolsUi();
+    if(typeof playTimerBeep === 'function') playTimerBeep();
+    showToast('Descanso terminado');
+  }
+  function tickManualRestTimer(){
+    if(!manualRestEndsAt) return;
+    if(restSecondsRemaining() <= 0){ finishManualRestTimer(); return; }
+    updateWorkoutToolsUi();
+  }
+  function cancelManualRestTimer(notify = true){
+    const wasRunning = !!manualRestEndsAt;
+    if(manualRestInterval) clearInterval(manualRestInterval);
+    manualRestInterval = null;
+    manualRestEndsAt = 0;
+    updateWorkoutToolsUi();
+    if(wasRunning && notify) showToast('Descanso cancelado');
+  }
+  function startManualRestTimer(){
+    if(!currentRoutineId || manualRestEndsAt) return;
+    if(typeof primeAudioContext === 'function') primeAudioContext();
+    manualRestEndsAt = Date.now() + MANUAL_REST_SECONDS*1000;
+    if(manualRestInterval) clearInterval(manualRestInterval);
+    manualRestInterval = setInterval(tickManualRestTimer,250);
+    updateWorkoutToolsUi();
+    showToast('Descanso de 1:30 iniciado');
+  }
+  window.startManualRestTimer = startManualRestTimer;
+  window.cancelManualRestTimer = cancelManualRestTimer;
+
+  function adjustQuickSeries(input,delta){
+    const exId = input.dataset.quickExerciseId;
+    const idx = Number(input.dataset.quickSeriesIndex);
+    const field = input.dataset.quickSeriesField;
+    if(!exId || !Number.isInteger(idx) || !field) return;
+    const fallback = input.dataset.quickReplaceValue || input.value || '0';
+    const current = Number.parseFloat(input.value || fallback) || 0;
+    const next = Math.max(0,field === 'reps' ? Math.round(current+delta) : Math.round((current+delta)*10)/10);
+    if(next === current) return;
+    input.value = String(next);
+    updateSeries(exId,idx,field,String(next));
+  }
+  function quickAdjustButton(input,delta,label){
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'gym-series-step ' + (delta<0?'minus':'plus');
+    button.textContent = delta<0 ? '−' : '+';
+    button.setAttribute('aria-label',label);
+    button.addEventListener('pointerdown',event=>event.preventDefault());
+    button.addEventListener('click',()=>adjustQuickSeries(input,delta));
+    return button;
+  }
+  function installQuickAdjustControls(){
+    document.querySelectorAll('#phase-active .exercise-block[data-exercise-id]').forEach(block=>{
+      const exId = block.dataset.exerciseId;
+      block.querySelectorAll('.series-row').forEach((row,idx)=>{
+        row.querySelectorAll('.series-input[type=number]:not(:disabled)').forEach(input=>{
+          if(input.closest('.gym-series-stepper')) return;
+          const field = input.getAttribute('placeholder') === 'kg' ? 'weight' : 'reps';
+          const delta = field === 'weight' ? 2.5 : 1;
+          input.dataset.quickExerciseId = exId;
+          input.dataset.quickSeriesIndex = String(idx);
+          input.dataset.quickSeriesField = field;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'gym-series-stepper';
+          input.parentNode.insertBefore(wrapper,input);
+          wrapper.append(
+            quickAdjustButton(input,-delta,field === 'weight' ? 'Restar 2,5 kilos' : 'Restar 1 repetición'),
+            input,
+            quickAdjustButton(input,delta,field === 'weight' ? 'Sumar 2,5 kilos' : 'Sumar 1 repetición')
+          );
+        });
+      });
+    });
+  }
+  function installWorkoutTools(){
+    const dock = document.getElementById('activeQuickActions');
+    if(!dock || !currentRoutineId){
+      document.body.classList.remove('gym-workout-tools-active');
+      return;
+    }
+    document.body.classList.add('gym-workout-tools-active');
+    if(!dock.querySelector('.gym-workout-tools')){
+      const tools = document.createElement('div');
+      tools.className = 'gym-workout-tools';
+      tools.innerHTML = '<div class="gym-rest-control"><button type="button" id="gymManualRestButton" class="gym-workout-tool" onclick="startManualRestTimer()">Descanso 1:30</button><button type="button" id="gymManualRestCancel" class="gym-rest-cancel" aria-label="Cancelar descanso" onclick="cancelManualRestTimer()" hidden>&times;</button></div><button type="button" id="gymUndoWorkoutButton" class="gym-workout-tool undo" onclick="undoGymWorkoutAction()" disabled>&#8630; Deshacer</button>';
+      dock.prepend(tools);
+    }
+    updateWorkoutToolsUi();
+  }
+  function enhanceActiveWorkoutControls(){
+    installQuickAdjustControls();
+    installWorkoutTools();
+  }
+  const baseRenderActiveExercisesMobile = renderActiveExercises;
+  renderActiveExercises = function(){
+    const result = baseRenderActiveExercisesMobile.apply(this,arguments);
+    enhanceActiveWorkoutControls();
+    return result;
+  };
+  const baseStartWorkoutMobile = startWorkout;
+  startWorkout = function(){
+    cancelManualRestTimer(false);
+    clearWorkoutAction();
+    return baseStartWorkoutMobile.apply(this,arguments);
+  };
+  const baseFinishWorkoutMobile = finishWorkout;
+  finishWorkout = function(){
+    cancelManualRestTimer(false);
+    clearWorkoutAction();
+    document.body.classList.remove('gym-workout-tools-active');
+    return baseFinishWorkoutMobile.apply(this,arguments);
+  };
+  const baseDiscardWorkoutMobile = discardWorkout;
+  discardWorkout = function(){
+    const previousRoutine = currentRoutineId;
+    const result = baseDiscardWorkoutMobile.apply(this,arguments);
+    if(previousRoutine && currentRoutineId !== previousRoutine){
+      cancelManualRestTimer(false); clearWorkoutAction();
+      document.body.classList.remove('gym-workout-tools-active');
+    }
+    return result;
+  };
+  const baseGoToGridMobile = goToGrid;
+  goToGrid = function(){
+    const previousRoutine = currentRoutineId;
+    const result = baseGoToGridMobile.apply(this,arguments);
+    if(previousRoutine && currentRoutineId !== previousRoutine){
+      cancelManualRestTimer(false); clearWorkoutAction();
+      document.body.classList.remove('gym-workout-tools-active');
+    }
+    return result;
+  };
   function profile(){
     state.settings = state.settings || {};
     state.settings.healthProfile = state.settings.healthProfile || {};
@@ -800,10 +1011,12 @@
       .gym-hr-stats,.gym-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.gym-hr-stats span,.gym-analysis-grid span{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px;color:var(--muted);font-size:11px}.gym-hr-stats strong,.gym-analysis-grid strong{display:block;color:var(--text);font-size:15px;margin-top:3px}
       .gym-health-analysis,.gym-health-profile{margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--card)}.gym-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gym-profile-grid label{font-size:11px;color:var(--muted);font-weight:800}.gym-profile-grid input{width:100%;margin-top:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px;box-sizing:border-box}
       #phase-active .series-input.quick-replace-active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg));caret-color:var(--accent)}#phase-active .series-input.quick-replace-active::placeholder{color:var(--text);opacity:.3;font-weight:700}
+      #phase-active .gym-series-stepper{position:relative;min-width:0;width:100%}#phase-active .gym-series-stepper .series-input{padding-left:27px;padding-right:27px;-moz-appearance:textfield}#phase-active .gym-series-stepper .series-input::-webkit-inner-spin-button,#phase-active .gym-series-stepper .series-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}#phase-active .gym-series-step{position:absolute;top:50%;z-index:2;width:25px;height:36px;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);font-size:19px;font-weight:900;line-height:1;cursor:pointer;touch-action:manipulation;opacity:.72}#phase-active .gym-series-step.minus{left:1px}#phase-active .gym-series-step.plus{right:1px}#phase-active .gym-series-step:active{color:var(--accent2);opacity:1;transform:translateY(-50%) scale(.92)}
+      #phase-active .gym-workout-tools{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(92px,.62fr);gap:7px;min-width:0}#phase-active .gym-rest-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;min-width:0}#phase-active .gym-workout-tool,#phase-active .gym-rest-cancel{min-height:36px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(255,255,255,.045);color:var(--text);font:800 11px DM Sans,sans-serif;cursor:pointer;touch-action:manipulation}#phase-active .gym-workout-tool.running{color:var(--accent2);border-color:color-mix(in srgb,var(--accent) 38%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent)}#phase-active .gym-workout-tool.undo{color:var(--muted)}#phase-active .gym-workout-tool.undo:not(:disabled){color:var(--text)}#phase-active .gym-workout-tool:disabled{cursor:default;opacity:.46}#phase-active .gym-rest-cancel{width:36px;color:#fca5a5;font-size:18px}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(126px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active #phase-active .finish-section{padding-bottom:132px}
       .gym-calendar-hr{position:relative;box-sizing:border-box;max-width:100%;margin:14px 0 4px;padding:14px;border:1px solid color-mix(in srgb,var(--done) 24%,var(--border));border-radius:17px;background:linear-gradient(145deg,color-mix(in srgb,var(--done) 10%,var(--card)),color-mix(in srgb,var(--bg) 96%,transparent));overflow:hidden}.gym-calendar-hr:before{content:\x27\x27;position:absolute;width:150px;height:150px;right:-70px;top:-95px;border-radius:50%;background:color-mix(in srgb,var(--done) 16%,transparent);filter:blur(4px);pointer-events:none}.gym-calendar-hr-head,.gym-calendar-hr-title{display:flex;align-items:center}.gym-calendar-hr-head{position:relative;z-index:1;justify-content:space-between;gap:10px;min-width:0}.gym-calendar-hr-title{min-width:0}.gym-calendar-hr-open{flex:0 0 auto}.gym-calendar-hr-title{gap:9px;font-size:13px;font-weight:900}.gym-calendar-hr-title small{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-weight:700}.gym-calendar-hr-icon{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;color:#fff;background:linear-gradient(145deg,#fb7185,#ef4444);box-shadow:0 6px 16px rgba(239,68,68,.28);font-size:16px}.gym-calendar-hr-open{border:1px solid color-mix(in srgb,var(--done) 28%,var(--border));background:color-mix(in srgb,var(--done) 12%,var(--surface));color:var(--text);border-radius:10px;padding:7px 10px;font-size:10px;font-weight:900;cursor:pointer}.gym-calendar-hr-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0 6px}.gym-calendar-hr-stats span{display:grid;grid-template-columns:auto auto;align-items:baseline;justify-content:start;column-gap:3px;padding:8px 9px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06)}.gym-calendar-hr-stats small{grid-column:1/-1;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.gym-calendar-hr-stats strong{font-size:18px;line-height:1.15}.gym-calendar-hr-stats em{color:var(--muted);font-size:9px;font-style:normal;font-weight:800}.gym-calendar-hr-chart{position:relative;height:150px;margin-top:2px}.gym-calendar-hr-canvas{display:block;width:100%;height:150px;touch-action:pan-y}.gym-calendar-hr-tooltip{position:absolute;top:5px;display:none;transform:translateX(-50%);padding:6px 8px;border:1px solid var(--border);border-radius:999px;background:color-mix(in srgb,var(--bg) 92%,transparent);box-shadow:0 7px 18px rgba(0,0,0,.28);font-size:9px;font-weight:900;white-space:nowrap;pointer-events:none}.gym-calendar-hr-tooltip.show{display:block}.gym-calendar-hr-zones{display:flex;height:4px;margin:3px 8px 0;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.06)}.gym-calendar-hr-zones span{display:block;height:100%}.gym-calendar-hr-axis{display:flex;justify-content:space-between;margin:5px 8px 0;color:var(--muted);font-size:9px;font-weight:800}
       .gym-note-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.gym-note-toolbar span{color:var(--muted);font-size:11px}.gym-note-start{margin-left:6px}
       .gym-update-prompt{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:10030;display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:10px 12px;box-shadow:0 18px 40px rgba(0,0,0,.45)}.gym-update-prompt span{flex:1;font-weight:800}.gym-update-prompt button{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:800}
-      @media(max-width:640px){.gym-hr-stats,.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}.gym-calendar-hr{padding:12px;margin-inline:-2px}.gym-calendar-hr-chart,.gym-calendar-hr-canvas{height:138px}.gym-calendar-hr-stats strong{font-size:17px}}
+      @media(max-width:640px){.gym-hr-stats,.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(122px + env(safe-area-inset-bottom,0px))}.gym-calendar-hr{padding:12px;margin-inline:-2px}.gym-calendar-hr-chart,.gym-calendar-hr-canvas{height:138px}.gym-calendar-hr-stats strong{font-size:17px}#phase-active .gym-series-step{height:32px;width:23px;font-size:18px}#phase-active .gym-series-stepper .series-input{padding-left:24px;padding-right:24px}#phase-active .gym-workout-tools{grid-template-columns:minmax(0,1fr) 96px}}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.gym-cloud-status,.gym-update-prompt{transition:none!important}}
     `;
     document.head.appendChild(style);
@@ -811,7 +1024,7 @@
 
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'&&readPendingState()) saveUserCloudState({immediate:true,silent:true});
-    if(document.visibilityState==='visible') processHealthRecoveryQueue();
+    if(document.visibilityState==='visible'){ processHealthRecoveryQueue(); tickManualRestTimer(); }
   });
   window.addEventListener('pagehide',()=>{ if(readPendingState()) saveUserCloudState({immediate:true,silent:true}); });
   window.addEventListener('online',()=>{ setCloudStatus('pending','Nube: reconectando'); saveUserCloudState({silent:true}); processHealthRecoveryQueue(); });
@@ -819,7 +1032,7 @@
   window.addEventListener('keydown',event=>{ if(event.key==='Escape') closeHeartRateDetails(); });
 
   async function bootReliability(){
-    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); await registerPwa();
+    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); enhanceActiveWorkoutControls(); await registerPwa();
     setTimeout(async()=>{ await loadHealthProfile(); renderHealthSettings(); processHealthRecoveryQueue(); },2500);
     setInterval(processHealthRecoveryQueue,5*60*1000);
   }
