@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'gymlog-web-v6-20260721-quick-input';
+const CACHE_VERSION = 'gymlog-web-v7-20260721-mobile-workout-tools';
 const APP_SHELL = [
   '/',
   '/gymlog-classic.html',
