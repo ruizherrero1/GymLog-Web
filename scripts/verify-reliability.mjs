@@ -35,7 +35,11 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v5-20260721-calendar-hr'), 'La nueva grafica debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v6-20260721-quick-input'), 'La mejora de inputs debe invalidar la cache PWA anterior.');
+check(reliability.includes('beginQuickReplaceSeriesInput(input)'), 'Los campos de series deben vaciarse al recibir foco.');
+check(reliability.includes('input.dataset.quickReplaceValue = input.value'), 'El valor anterior debe conservarse como respaldo.');
+check(reliability.includes("if(input.value.trim() === '') input.value = input.dataset.quickReplaceValue || ''"), 'Salir sin escribir debe restaurar el valor anterior.');
+check(reliability.includes('.series-input[type="number"]:not(:disabled)'), 'El reemplazo rapido solo debe afectar peso y repeticiones durante el entreno.');
 
 for(const file of ['public/gymlog-reliability.js','public/gymlog-note-templates.js','public/service-worker.js','scripts/prepare-classic-web.mjs']){
   const result = spawnSync(process.execPath, ['--check', file], { cwd:root, encoding:'utf8' });
