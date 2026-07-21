@@ -35,7 +35,7 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v8-20260721-rest-setting'), 'El ajuste de descanso debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v9-20260721-routine-timers'), 'Los temporizadores de rutina deben invalidar la cache PWA anterior.');
 check(reliability.includes('beginQuickReplaceSeriesInput(input)'), 'Los campos de series deben vaciarse al recibir foco.');
 check(reliability.includes('input.dataset.quickReplaceValue = input.value'), 'El valor anterior debe conservarse como respaldo.');
 check(reliability.includes("if(input.value.trim() === '') input.value = input.dataset.quickReplaceValue || ''"), 'Salir sin escribir debe restaurar el valor anterior.');
@@ -52,6 +52,14 @@ check(reliability.includes("const delta = field === 'weight' ? 2.5 : 1"), 'Los a
 check(reliability.includes("wrapper.className = 'gym-series-stepper'"), 'Los ajustes deben integrarse dentro del campo para conservar el ancho movil.');
 check(reliability.includes('function undoGymWorkoutAction()'), 'El entreno debe permitir deshacer la ultima accion.');
 check(reliability.includes('workoutData = clone(lastWorkoutAction.workoutData)'), 'Deshacer debe restaurar una copia segura del entreno.');
+check(reliability.includes("routine?.timerMode === 'stopwatch' || routine?.timerMode === 'countdown'"), 'Las rutinas deben admitir cronometro y cuenta atras.');
+check(reliability.includes("const ROUTINE_TIMER_STORAGE_KEY = 'gymlog-routine-timer-v1'"), 'El temporizador de rutina debe poder recuperarse al volver a la app.');
+check(reliability.includes('function routineTimerValue(now = Date.now())'), 'El tiempo debe calcularse con marcas temporales para resistir el segundo plano.');
+check(reliability.includes('window.toggleRoutineTimer = toggleRoutineTimer'), 'El temporizador solo debe comenzar desde Play.');
+check(reliability.includes("if(typeof playTimerBeep === 'function') playTimerBeep()"), 'La cuenta atras debe avisar con el sonido configurado.');
+check(reliability.includes("Cronómetro libre (cuenta hacia arriba)"), 'El editor debe ofrecer cronometro libre.');
+check(reliability.includes("routine.timerDurationSeconds = timerConfig.duration"), 'El editor debe guardar la duracion de la cuenta atras.');
+check(reliability.includes("activeExercises.parentNode.insertBefore(panel,activeExercises)"), 'El temporizador debe quedar visible antes de los ejercicios.');
 
 for(const file of ['public/gymlog-reliability.js','public/gymlog-note-templates.js','public/service-worker.js','scripts/prepare-classic-web.mjs']){
   const result = spawnSync(process.execPath, ['--check', file], { cwd:root, encoding:'utf8' });

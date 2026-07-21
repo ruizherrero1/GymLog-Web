@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'gymlog-web-v8-20260721-rest-setting';
+const CACHE_VERSION = 'gymlog-web-v9-20260721-routine-timers';
 const APP_SHELL = [
   '/',
   '/gymlog-classic.html',
