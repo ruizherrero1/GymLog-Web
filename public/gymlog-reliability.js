@@ -292,7 +292,9 @@
     };
   }
 
-  const MANUAL_REST_SECONDS = 90;
+  const DEFAULT_MANUAL_REST_SECONDS = 60;
+  const MIN_MANUAL_REST_SECONDS = 15;
+  const MAX_MANUAL_REST_SECONDS = 600;
   let manualRestEndsAt = 0;
   let manualRestInterval = null;
   let lastWorkoutAction = null;
@@ -385,6 +387,11 @@
   function restSecondsRemaining(){
     return manualRestEndsAt ? Math.max(0,Math.ceil((manualRestEndsAt-Date.now())/1000)) : 0;
   }
+  function configuredRestSeconds(){
+    const configured = Number(state?.settings?.manualRestSeconds);
+    if(!Number.isFinite(configured)) return DEFAULT_MANUAL_REST_SECONDS;
+    return Math.min(MAX_MANUAL_REST_SECONDS,Math.max(MIN_MANUAL_REST_SECONDS,Math.round(configured)));
+  }
   function formatRestSeconds(seconds){
     const safe = Math.max(0,Number(seconds)||0);
     return Math.floor(safe/60) + ':' + String(safe%60).padStart(2,'0');
@@ -395,10 +402,11 @@
     const undoButton = document.getElementById('gymUndoWorkoutButton');
     const remaining = restSecondsRemaining();
     if(restButton){
-      restButton.textContent = 'Descanso ' + formatRestSeconds(remaining || MANUAL_REST_SECONDS);
+      const configured = configuredRestSeconds();
+      restButton.textContent = 'Descanso ' + formatRestSeconds(remaining || configured);
       restButton.classList.toggle('running',remaining>0);
       restButton.disabled = remaining>0;
-      restButton.setAttribute('aria-label',remaining ? 'Descanso en curso, quedan ' + remaining + ' segundos' : 'Iniciar descanso de 90 segundos');
+      restButton.setAttribute('aria-label',remaining ? 'Descanso en curso, quedan ' + remaining + ' segundos' : 'Iniciar descanso de ' + configured + ' segundos');
     }
     if(cancelButton) cancelButton.hidden = !remaining;
     if(undoButton){
@@ -431,11 +439,12 @@
   function startManualRestTimer(){
     if(!currentRoutineId || manualRestEndsAt) return;
     if(typeof primeAudioContext === 'function') primeAudioContext();
-    manualRestEndsAt = Date.now() + MANUAL_REST_SECONDS*1000;
+    const duration = configuredRestSeconds();
+    manualRestEndsAt = Date.now() + duration*1000;
     if(manualRestInterval) clearInterval(manualRestInterval);
     manualRestInterval = setInterval(tickManualRestTimer,250);
     updateWorkoutToolsUi();
-    showToast('Descanso de 1:30 iniciado');
+    showToast('Descanso de ' + formatRestSeconds(duration) + ' iniciado');
   }
   window.startManualRestTimer = startManualRestTimer;
   window.cancelManualRestTimer = cancelManualRestTimer;
@@ -495,7 +504,7 @@
     if(!dock.querySelector('.gym-workout-tools')){
       const tools = document.createElement('div');
       tools.className = 'gym-workout-tools';
-      tools.innerHTML = '<div class="gym-rest-control"><button type="button" id="gymManualRestButton" class="gym-workout-tool" onclick="startManualRestTimer()">Descanso 1:30</button><button type="button" id="gymManualRestCancel" class="gym-rest-cancel" aria-label="Cancelar descanso" onclick="cancelManualRestTimer()" hidden>&times;</button></div><button type="button" id="gymUndoWorkoutButton" class="gym-workout-tool undo" onclick="undoGymWorkoutAction()" disabled>&#8630; Deshacer</button>';
+      tools.innerHTML = '<div class="gym-rest-control"><button type="button" id="gymManualRestButton" class="gym-workout-tool" onclick="startManualRestTimer()">Descanso 1:00</button><button type="button" id="gymManualRestCancel" class="gym-rest-cancel" aria-label="Cancelar descanso" onclick="cancelManualRestTimer()" hidden>&times;</button></div><button type="button" id="gymUndoWorkoutButton" class="gym-workout-tool undo" onclick="undoGymWorkoutAction()" disabled>&#8630; Deshacer</button>';
       dock.prepend(tools);
     }
     updateWorkoutToolsUi();
@@ -883,9 +892,48 @@
     };
   }
 
+  function renderRestSettingsPanel(){
+    const soundOptions = document.getElementById('soundOptions');
+    if(!soundOptions) return;
+    let panel = document.getElementById('gymRestSettings');
+    if(!panel){
+      panel = document.createElement('div');
+      panel.id = 'gymRestSettings';
+      panel.className = 'backup-card gym-rest-settings';
+      panel.innerHTML = '<div class="chart-title">Descanso manual</div><div class="backup-copy">El temporizador solo empieza cuando pulsas <strong>Descanso</strong>. El cambio se aplicará al siguiente descanso.</div><div class="gym-rest-setting-row"><label for="gymRestSeconds">Duración en segundos <span>De 15 s a 10 min</span></label><div class="gym-rest-setting-controls"><input id="gymRestSeconds" type="number" inputmode="numeric" min="15" max="600" step="5" aria-describedby="gymRestSettingHelp"><button type="button" class="ghost-btn" id="gymSaveRestSeconds">Guardar</button></div></div><div class="backup-copy" id="gymRestSettingHelp">Valor actual: <strong id="gymRestSettingCurrent"></strong></div>';
+      const anchor = soundOptions.closest('.backup-card');
+      if(anchor) anchor.insertAdjacentElement('afterend',panel);
+      else soundOptions.insertAdjacentElement('afterend',panel);
+      panel.querySelector('#gymSaveRestSeconds')?.addEventListener('click',()=>{
+        const input = panel.querySelector('#gymRestSeconds');
+        const value = Math.round(Number(input?.value));
+        if(!Number.isFinite(value) || value<MIN_MANUAL_REST_SECONDS || value>MAX_MANUAL_REST_SECONDS){
+          showToast('El descanso debe estar entre 15 y 600 segundos');
+          input?.focus();
+          return;
+        }
+        state.settings = state.settings || {};
+        state.settings.manualRestSeconds = value;
+        save();
+        renderRestSettingsPanel();
+        updateWorkoutToolsUi();
+        showToast('Descanso guardado: ' + formatRestSeconds(value));
+      });
+      panel.querySelector('#gymRestSeconds')?.addEventListener('keydown',event=>{
+        if(event.key==='Enter') panel.querySelector('#gymSaveRestSeconds')?.click();
+      });
+    }
+    const duration = configuredRestSeconds();
+    const input = panel.querySelector('#gymRestSeconds');
+    const current = panel.querySelector('#gymRestSettingCurrent');
+    if(input) input.value = String(duration);
+    if(current) current.textContent = formatRestSeconds(duration);
+  }
+
   const baseRenderHealthSettings = renderHealthSettings;
   renderHealthSettings = function(){
     baseRenderHealthSettings();
+    renderRestSettingsPanel();
     const signedIn=document.getElementById('healthSignedInPanel');
     if(signedIn && !document.getElementById('gymHealthProfile')) signedIn.insertAdjacentHTML('beforeend',profilePanel());
     const grid=document.getElementById('securityStatusGrid');
@@ -1010,6 +1058,7 @@
       .gym-hr-canvas-wrap{position:relative}.gym-hr-canvas-wrap canvas{width:100%;height:320px;display:block;touch-action:pan-y}.gym-hr-tooltip{display:none;position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800;pointer-events:none}
       .gym-hr-stats,.gym-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.gym-hr-stats span,.gym-analysis-grid span{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px;color:var(--muted);font-size:11px}.gym-hr-stats strong,.gym-analysis-grid strong{display:block;color:var(--text);font-size:15px;margin-top:3px}
       .gym-health-analysis,.gym-health-profile{margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--card)}.gym-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gym-profile-grid label{font-size:11px;color:var(--muted);font-weight:800}.gym-profile-grid input{width:100%;margin-top:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px;box-sizing:border-box}
+      .gym-rest-settings{margin-bottom:12px}.gym-rest-setting-row{display:grid;gap:7px;margin-top:13px}.gym-rest-setting-row label{display:flex;align-items:baseline;justify-content:space-between;gap:8px;color:var(--text);font-size:12px;font-weight:900}.gym-rest-setting-row label span{color:var(--muted);font-size:10px;font-weight:700}.gym-rest-setting-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.gym-rest-setting-controls input{min-width:0;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--text);padding:10px 12px;font:800 14px DM Sans,sans-serif}.gym-rest-setting-controls .ghost-btn{min-height:42px}.gym-rest-settings #gymRestSettingHelp{margin-top:8px}.gym-rest-settings #gymRestSettingHelp strong{color:var(--accent2)}
       #phase-active .series-input.quick-replace-active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg));caret-color:var(--accent)}#phase-active .series-input.quick-replace-active::placeholder{color:var(--text);opacity:.3;font-weight:700}
       #phase-active .gym-series-stepper{position:relative;min-width:0;width:100%}#phase-active .gym-series-stepper .series-input{padding-left:27px;padding-right:27px;-moz-appearance:textfield}#phase-active .gym-series-stepper .series-input::-webkit-inner-spin-button,#phase-active .gym-series-stepper .series-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}#phase-active .gym-series-step{position:absolute;top:50%;z-index:2;width:25px;height:36px;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);font-size:19px;font-weight:900;line-height:1;cursor:pointer;touch-action:manipulation;opacity:.72}#phase-active .gym-series-step.minus{left:1px}#phase-active .gym-series-step.plus{right:1px}#phase-active .gym-series-step:active{color:var(--accent2);opacity:1;transform:translateY(-50%) scale(.92)}
       #phase-active .gym-workout-tools{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(92px,.62fr);gap:7px;min-width:0}#phase-active .gym-rest-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;min-width:0}#phase-active .gym-workout-tool,#phase-active .gym-rest-cancel{min-height:36px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(255,255,255,.045);color:var(--text);font:800 11px DM Sans,sans-serif;cursor:pointer;touch-action:manipulation}#phase-active .gym-workout-tool.running{color:var(--accent2);border-color:color-mix(in srgb,var(--accent) 38%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent)}#phase-active .gym-workout-tool.undo{color:var(--muted)}#phase-active .gym-workout-tool.undo:not(:disabled){color:var(--text)}#phase-active .gym-workout-tool:disabled{cursor:default;opacity:.46}#phase-active .gym-rest-cancel{width:36px;color:#fca5a5;font-size:18px}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(126px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active #phase-active .finish-section{padding-bottom:132px}
@@ -1032,7 +1081,7 @@
   window.addEventListener('keydown',event=>{ if(event.key==='Escape') closeHeartRateDetails(); });
 
   async function bootReliability(){
-    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); enhanceActiveWorkoutControls(); await registerPwa();
+    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); enhanceActiveWorkoutControls(); renderRestSettingsPanel(); await registerPwa();
     setTimeout(async()=>{ await loadHealthProfile(); renderHealthSettings(); processHealthRecoveryQueue(); },2500);
     setInterval(processHealthRecoveryQueue,5*60*1000);
   }
