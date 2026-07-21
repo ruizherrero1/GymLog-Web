@@ -449,6 +449,206 @@
   window.startManualRestTimer = startManualRestTimer;
   window.cancelManualRestTimer = cancelManualRestTimer;
 
+  const ROUTINE_TIMER_STORAGE_KEY = 'gymlog-routine-timer-v1';
+  const DEFAULT_ROUTINE_COUNTDOWN_SECONDS = 30*60;
+  let routineTimerState = null;
+  let routineTimerInterval = null;
+
+  function routineTimerConfig(routine){
+    const mode = routine?.timerMode === 'stopwatch' || routine?.timerMode === 'countdown' ? routine.timerMode : 'none';
+    const configured = Math.round(Number(routine?.timerDurationSeconds) || DEFAULT_ROUTINE_COUNTDOWN_SECONDS);
+    return { mode, duration:Math.min(6*60*60,Math.max(60,configured)) };
+  }
+  function initialRoutineTimerState(routineId,config){
+    return {
+      routineId,
+      mode:config.mode,
+      duration:config.duration,
+      elapsed:0,
+      remaining:config.duration,
+      startedAt:0,
+      running:false,
+      finished:false
+    };
+  }
+  function readRoutineTimerState(){
+    try{
+      const saved = JSON.parse(localStorage.getItem(ROUTINE_TIMER_STORAGE_KEY) || 'null');
+      return saved && typeof saved === 'object' ? saved : null;
+    }catch{
+      return null;
+    }
+  }
+  function persistRoutineTimerState(){
+    try{
+      if(routineTimerState) localStorage.setItem(ROUTINE_TIMER_STORAGE_KEY,JSON.stringify(routineTimerState));
+      else localStorage.removeItem(ROUTINE_TIMER_STORAGE_KEY);
+    }catch(error){
+      console.warn('No se pudo guardar el temporizador de rutina.',error);
+    }
+  }
+  function clearRoutineTimerInterval(){
+    if(routineTimerInterval) clearInterval(routineTimerInterval);
+    routineTimerInterval = null;
+  }
+  function clearRoutineTimerState(){
+    clearRoutineTimerInterval();
+    routineTimerState = null;
+    persistRoutineTimerState();
+    document.getElementById('gymRoutineTimerPanel')?.remove();
+  }
+  function routineTimerValue(now = Date.now()){
+    if(!routineTimerState) return 0;
+    const delta = routineTimerState.running && routineTimerState.startedAt
+      ? Math.max(0,Math.floor((now-routineTimerState.startedAt)/1000))
+      : 0;
+    return routineTimerState.mode === 'countdown'
+      ? Math.max(0,(Number(routineTimerState.remaining)||0)-delta)
+      : Math.max(0,(Number(routineTimerState.elapsed)||0)+delta);
+  }
+  function formatRoutineTimer(seconds){
+    const safe = Math.max(0,Math.floor(Number(seconds)||0));
+    const hours = Math.floor(safe/3600);
+    const minutes = Math.floor((safe%3600)/60);
+    const secs = safe%60;
+    return hours
+      ? String(hours).padStart(2,'0') + ':' + String(minutes).padStart(2,'0') + ':' + String(secs).padStart(2,'0')
+      : String(minutes).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  }
+  function settleRoutineTimer(){
+    if(!routineTimerState?.running) return;
+    const value = routineTimerValue();
+    if(routineTimerState.mode === 'countdown') routineTimerState.remaining = value;
+    else routineTimerState.elapsed = value;
+    routineTimerState.running = false;
+    routineTimerState.startedAt = 0;
+  }
+  function ensureRoutineTimerState(forceReset = false){
+    const routine = state.routines.find(item=>item.id===currentRoutineId);
+    const config = routineTimerConfig(routine);
+    if(!routine || config.mode === 'none'){
+      clearRoutineTimerState();
+      return null;
+    }
+    if(!forceReset && routineTimerState?.routineId === routine.id && routineTimerState.mode === config.mode){
+      return routineTimerState;
+    }
+    const saved = !forceReset ? readRoutineTimerState() : null;
+    if(saved?.routineId === routine.id && saved.mode === config.mode){
+      routineTimerState = {
+        ...initialRoutineTimerState(routine.id,config),
+        ...saved,
+        duration:config.duration
+      };
+      if(config.mode === 'countdown'){
+        routineTimerState.remaining = Math.min(config.duration,Math.max(0,Number(routineTimerState.remaining)||0));
+      }
+    }else{
+      routineTimerState = initialRoutineTimerState(routine.id,config);
+      persistRoutineTimerState();
+    }
+    return routineTimerState;
+  }
+  function updateRoutineTimerPanel(){
+    const panel = document.getElementById('gymRoutineTimerPanel');
+    if(!panel || !routineTimerState) return;
+    const value = routineTimerValue();
+    const timerValue = panel.querySelector('#gymRoutineTimerValue');
+    const status = panel.querySelector('#gymRoutineTimerStatus');
+    const toggle = panel.querySelector('#gymRoutineTimerToggle');
+    if(timerValue) timerValue.textContent = formatRoutineTimer(value);
+    panel.classList.toggle('running',!!routineTimerState.running);
+    panel.classList.toggle('finished',!!routineTimerState.finished);
+    if(status){
+      status.textContent = routineTimerState.finished
+        ? 'Tiempo terminado'
+        : routineTimerState.running
+          ? 'En marcha'
+          : (value === (routineTimerState.mode === 'countdown' ? routineTimerState.duration : 0) ? 'Listo' : 'Parado');
+    }
+    if(toggle){
+      toggle.textContent = routineTimerState.running ? '■ Parar' : (routineTimerState.finished ? '▶ Repetir' : '▶ Play');
+      toggle.setAttribute('aria-label',routineTimerState.running ? 'Parar temporizador de rutina' : 'Iniciar temporizador de rutina');
+    }
+  }
+  function finishRoutineCountdown(){
+    if(!routineTimerState || routineTimerState.mode !== 'countdown' || routineTimerState.finished) return;
+    routineTimerState.remaining = 0;
+    routineTimerState.startedAt = 0;
+    routineTimerState.running = false;
+    routineTimerState.finished = true;
+    clearRoutineTimerInterval();
+    persistRoutineTimerState();
+    updateRoutineTimerPanel();
+    if(typeof playTimerBeep === 'function') playTimerBeep();
+    if(typeof navigator.vibrate === 'function') navigator.vibrate([180,90,180]);
+    showToast('Cuenta atrás terminada');
+  }
+  function tickRoutineTimer(){
+    if(!routineTimerState?.running) return;
+    if(routineTimerState.mode === 'countdown' && routineTimerValue() <= 0){
+      finishRoutineCountdown();
+      return;
+    }
+    updateRoutineTimerPanel();
+  }
+  function startRoutineTimerInterval(){
+    clearRoutineTimerInterval();
+    routineTimerInterval = setInterval(tickRoutineTimer,250);
+  }
+  function toggleRoutineTimer(){
+    if(!ensureRoutineTimerState()) return;
+    if(routineTimerState.running){
+      settleRoutineTimer();
+      clearRoutineTimerInterval();
+      persistRoutineTimerState();
+      updateRoutineTimerPanel();
+      return;
+    }
+    if(routineTimerState.mode === 'countdown' && (routineTimerState.finished || routineTimerState.remaining <= 0)){
+      routineTimerState.remaining = routineTimerState.duration;
+      routineTimerState.finished = false;
+    }
+    if(typeof primeAudioContext === 'function') primeAudioContext();
+    routineTimerState.startedAt = Date.now();
+    routineTimerState.running = true;
+    routineTimerState.finished = false;
+    persistRoutineTimerState();
+    startRoutineTimerInterval();
+    updateRoutineTimerPanel();
+  }
+  function resetRoutineTimer(){
+    const routine = state.routines.find(item=>item.id===currentRoutineId);
+    const config = routineTimerConfig(routine);
+    if(!routine || config.mode === 'none') return;
+    clearRoutineTimerInterval();
+    routineTimerState = initialRoutineTimerState(routine.id,config);
+    persistRoutineTimerState();
+    updateRoutineTimerPanel();
+  }
+  window.toggleRoutineTimer = toggleRoutineTimer;
+  window.resetRoutineTimer = resetRoutineTimer;
+
+  function renderRoutineTimerPanel(){
+    const activeExercises = document.getElementById('activeExercises');
+    const timer = ensureRoutineTimerState();
+    if(!activeExercises || !timer) return;
+    let panel = document.getElementById('gymRoutineTimerPanel');
+    if(!panel){
+      panel = document.createElement('section');
+      panel.id = 'gymRoutineTimerPanel';
+      panel.className = 'gym-routine-timer';
+      panel.setAttribute('aria-label','Temporizador de la rutina');
+      panel.innerHTML = '<div class="gym-routine-timer-head"><div><div class="gym-routine-timer-kicker" id="gymRoutineTimerMode"></div><div class="gym-routine-timer-status" id="gymRoutineTimerStatus" aria-live="polite">Listo</div></div><span class="gym-routine-timer-dot"></span></div><div class="gym-routine-timer-value" id="gymRoutineTimerValue">00:00</div><div class="gym-routine-timer-actions"><button type="button" class="primary" id="gymRoutineTimerToggle" onclick="toggleRoutineTimer()">▶ Play</button><button type="button" onclick="resetRoutineTimer()">↺ Reiniciar</button></div><div class="gym-routine-timer-note">Tú decides cuándo empieza. Si sales de la app, seguirá calculando el tiempo correctamente.</div>';
+      activeExercises.parentNode.insertBefore(panel,activeExercises);
+    }
+    const mode = panel.querySelector('#gymRoutineTimerMode');
+    if(mode) mode.textContent = timer.mode === 'countdown' ? 'Cuenta atrás de rutina' : 'Cronómetro de rutina';
+    if(timer.running) startRoutineTimerInterval();
+    tickRoutineTimer();
+    updateRoutineTimerPanel();
+  }
+
   function adjustQuickSeries(input,delta){
     const exId = input.dataset.quickExerciseId;
     const idx = Number(input.dataset.quickSeriesIndex);
@@ -512,6 +712,7 @@
   function enhanceActiveWorkoutControls(){
     installQuickAdjustControls();
     installWorkoutTools();
+    renderRoutineTimerPanel();
   }
   const baseRenderActiveExercisesMobile = renderActiveExercises;
   renderActiveExercises = function(){
@@ -523,14 +724,20 @@
   startWorkout = function(){
     cancelManualRestTimer(false);
     clearWorkoutAction();
-    return baseStartWorkoutMobile.apply(this,arguments);
+    clearRoutineTimerState();
+    const result = baseStartWorkoutMobile.apply(this,arguments);
+    ensureRoutineTimerState(true);
+    renderRoutineTimerPanel();
+    return result;
   };
   const baseFinishWorkoutMobile = finishWorkout;
   finishWorkout = function(){
     cancelManualRestTimer(false);
     clearWorkoutAction();
     document.body.classList.remove('gym-workout-tools-active');
-    return baseFinishWorkoutMobile.apply(this,arguments);
+    const result = baseFinishWorkoutMobile.apply(this,arguments);
+    clearRoutineTimerState();
+    return result;
   };
   const baseDiscardWorkoutMobile = discardWorkout;
   discardWorkout = function(){
@@ -538,6 +745,7 @@
     const result = baseDiscardWorkoutMobile.apply(this,arguments);
     if(previousRoutine && currentRoutineId !== previousRoutine){
       cancelManualRestTimer(false); clearWorkoutAction();
+      clearRoutineTimerState();
       document.body.classList.remove('gym-workout-tools-active');
     }
     return result;
@@ -548,10 +756,118 @@
     const result = baseGoToGridMobile.apply(this,arguments);
     if(previousRoutine && currentRoutineId !== previousRoutine){
       cancelManualRestTimer(false); clearWorkoutAction();
+      clearRoutineTimerState();
       document.body.classList.remove('gym-workout-tools-active');
     }
     return result;
   };
+
+  function routineTimerBadgeText(routine){
+    const config = routineTimerConfig(routine);
+    if(config.mode === 'stopwatch') return '⏱ Cronómetro';
+    if(config.mode === 'countdown') return '⌛ ' + Math.round(config.duration/60) + ' min';
+    return '';
+  }
+  function decorateRoutineTimerBadges(){
+    const routineCards = document.querySelectorAll('#routinesList .rt-block');
+    const workoutCards = document.querySelectorAll('#workoutRoutineGrid .routine-card');
+    state.routines.forEach((routine,index)=>{
+      const text = routineTimerBadgeText(routine);
+      if(!text) return;
+      const routineBadges = routineCards[index]?.querySelector('.rt-badges');
+      if(routineBadges && !routineBadges.querySelector('.gym-routine-timer-badge')){
+        routineBadges.insertAdjacentHTML('beforeend','<span class="rt-badge gym-routine-timer-badge">' + escapeHtml(text) + '</span>');
+      }
+      const workoutBadges = workoutCards[index]?.querySelector('.r-badges');
+      if(workoutBadges && !workoutBadges.querySelector('.gym-routine-timer-badge')){
+        workoutBadges.insertAdjacentHTML('beforeend','<span class="r-badge gym-routine-timer-badge">' + escapeHtml(text) + '</span>');
+      }
+    });
+  }
+  function ensureRoutineTimerEditor(){
+    const descriptionField = document.getElementById('rDesc')?.closest('.field');
+    if(!descriptionField || document.getElementById('gymRoutineTimerSettings')) return;
+    const panel = document.createElement('div');
+    panel.id = 'gymRoutineTimerSettings';
+    panel.className = 'gym-routine-timer-settings';
+    panel.innerHTML = '<div class="gym-routine-timer-settings-title">Temporizador de la rutina</div><div class="gym-routine-timer-settings-copy">Aparecerá dentro del entreno y solo empezará cuando pulses Play.</div><label for="gymRoutineTimerMode">Modo</label><select id="gymRoutineTimerMode"><option value="none">Sin temporizador</option><option value="stopwatch">Cronómetro libre (cuenta hacia arriba)</option><option value="countdown">Cuenta atrás</option></select><div id="gymRoutineTimerDurationField"><label for="gymRoutineTimerMinutes">Duración de la cuenta atrás (minutos)</label><input id="gymRoutineTimerMinutes" type="number" inputmode="numeric" min="1" max="360" step="1" value="30"></div>';
+    descriptionField.insertAdjacentElement('afterend',panel);
+    panel.querySelector('#gymRoutineTimerMode')?.addEventListener('change',()=>{
+      markFormDirty();
+      updateRoutineTimerEditorUi();
+    });
+    panel.querySelector('#gymRoutineTimerMinutes')?.addEventListener('input',()=>markFormDirty());
+  }
+  function updateRoutineTimerEditorUi(){
+    const mode = document.getElementById('gymRoutineTimerMode')?.value || 'none';
+    const durationField = document.getElementById('gymRoutineTimerDurationField');
+    if(durationField) durationField.hidden = mode !== 'countdown';
+  }
+  function renderRoutineTimerEditor(routine){
+    ensureRoutineTimerEditor();
+    const config = routineTimerConfig(routine);
+    const mode = document.getElementById('gymRoutineTimerMode');
+    const minutes = document.getElementById('gymRoutineTimerMinutes');
+    if(mode) mode.value = config.mode;
+    if(minutes) minutes.value = String(Math.max(1,Math.round(config.duration/60)));
+    updateRoutineTimerEditorUi();
+  }
+  function readRoutineTimerEditor(){
+    const mode = document.getElementById('gymRoutineTimerMode')?.value || 'none';
+    if(mode !== 'countdown') return { mode, duration:0 };
+    const minutes = Math.round(Number(document.getElementById('gymRoutineTimerMinutes')?.value));
+    if(!Number.isFinite(minutes) || minutes<1 || minutes>360){
+      showToast('La cuenta atrás debe estar entre 1 y 360 minutos');
+      document.getElementById('gymRoutineTimerMinutes')?.focus();
+      return null;
+    }
+    return { mode, duration:minutes*60 };
+  }
+
+  const baseOpenAddRoutineTimer = openAddRoutine;
+  openAddRoutine = function(){
+    const result = baseOpenAddRoutineTimer.apply(this,arguments);
+    renderRoutineTimerEditor(null);
+    return result;
+  };
+  const baseEditRoutineTimer = editRoutine;
+  editRoutine = function(id){
+    const result = baseEditRoutineTimer.apply(this,arguments);
+    renderRoutineTimerEditor(state.routines.find(routine=>routine.id===id));
+    return result;
+  };
+  const baseSaveRoutineTimer = saveRoutine;
+  saveRoutine = function(){
+    const timerConfig = readRoutineTimerEditor();
+    if(!timerConfig) return;
+    const routineId = editingRoutineId;
+    const routineCount = state.routines.length;
+    const result = baseSaveRoutineTimer.apply(this,arguments);
+    if(document.getElementById('overlayRoutine')?.classList.contains('open')) return result;
+    const routine = routineId
+      ? state.routines.find(item=>item.id===routineId)
+      : (state.routines.length>routineCount ? state.routines[state.routines.length-1] : null);
+    if(!routine) return result;
+    routine.timerMode = timerConfig.mode;
+    if(timerConfig.mode === 'countdown') routine.timerDurationSeconds = timerConfig.duration;
+    else delete routine.timerDurationSeconds;
+    save();
+    renderRoutinesTab();
+    return result;
+  };
+  const baseRenderRoutinesTimer = renderRoutinesTab;
+  renderRoutinesTab = function(){
+    const result = baseRenderRoutinesTimer.apply(this,arguments);
+    decorateRoutineTimerBadges();
+    return result;
+  };
+  const baseRefreshRoutineGridTimer = refreshWorkoutGridCards;
+  refreshWorkoutGridCards = function(){
+    const result = baseRefreshRoutineGridTimer.apply(this,arguments);
+    decorateRoutineTimerBadges();
+    return result;
+  };
+
   function profile(){
     state.settings = state.settings || {};
     state.settings.healthProfile = state.settings.healthProfile || {};
@@ -1059,6 +1375,8 @@
       .gym-hr-stats,.gym-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.gym-hr-stats span,.gym-analysis-grid span{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px;color:var(--muted);font-size:11px}.gym-hr-stats strong,.gym-analysis-grid strong{display:block;color:var(--text);font-size:15px;margin-top:3px}
       .gym-health-analysis,.gym-health-profile{margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--card)}.gym-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gym-profile-grid label{font-size:11px;color:var(--muted);font-weight:800}.gym-profile-grid input{width:100%;margin-top:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px;box-sizing:border-box}
       .gym-rest-settings{margin-bottom:12px}.gym-rest-setting-row{display:grid;gap:7px;margin-top:13px}.gym-rest-setting-row label{display:flex;align-items:baseline;justify-content:space-between;gap:8px;color:var(--text);font-size:12px;font-weight:900}.gym-rest-setting-row label span{color:var(--muted);font-size:10px;font-weight:700}.gym-rest-setting-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.gym-rest-setting-controls input{min-width:0;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--text);padding:10px 12px;font:800 14px DM Sans,sans-serif}.gym-rest-setting-controls .ghost-btn{min-height:42px}.gym-rest-settings #gymRestSettingHelp{margin-top:8px}.gym-rest-settings #gymRestSettingHelp strong{color:var(--accent2)}
+      .gym-routine-timer-settings{margin:4px 0 18px;padding:14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--border));border-radius:15px;background:color-mix(in srgb,var(--accent) 7%,var(--card))}.gym-routine-timer-settings-title{font-size:14px;font-weight:900}.gym-routine-timer-settings-copy{margin:4px 0 12px;color:var(--muted);font-size:11px;line-height:1.45}.gym-routine-timer-settings label{display:block;margin:10px 0 5px;color:var(--muted);font-size:11px;font-weight:800}.gym-routine-timer-settings select,.gym-routine-timer-settings input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--text);padding:10px 11px;font:700 13px DM Sans,sans-serif}.gym-routine-timer-settings [hidden]{display:none!important}.gym-routine-timer-badge{border-color:color-mix(in srgb,var(--accent) 28%,var(--border))!important;color:var(--accent2)!important}
+      .gym-routine-timer{position:relative;margin:14px 0;padding:16px;border:1px solid color-mix(in srgb,var(--accent) 34%,var(--border));border-radius:20px;background:radial-gradient(circle at 88% 8%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 42%),linear-gradient(145deg,color-mix(in srgb,var(--accent) 9%,var(--card)),var(--card));box-shadow:0 14px 32px rgba(0,0,0,.22);overflow:hidden}.gym-routine-timer-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.gym-routine-timer-kicker{color:var(--accent2);font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.gym-routine-timer-status{margin-top:4px;color:var(--muted);font-size:11px;font-weight:800}.gym-routine-timer-dot{width:10px;height:10px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 5px color-mix(in srgb,var(--muted) 14%,transparent)}.gym-routine-timer.running .gym-routine-timer-dot{background:var(--done);box-shadow:0 0 0 5px color-mix(in srgb,var(--done) 16%,transparent),0 0 18px color-mix(in srgb,var(--done) 60%,transparent)}.gym-routine-timer.finished{border-color:color-mix(in srgb,var(--accent2) 55%,var(--border))}.gym-routine-timer.finished .gym-routine-timer-dot{background:var(--accent2)}.gym-routine-timer-value{margin:8px 0 12px;color:var(--text);font:500 clamp(54px,18vw,82px)/.95 Bebas Neue,DM Sans,sans-serif;letter-spacing:.06em;text-align:center;font-variant-numeric:tabular-nums}.gym-routine-timer-actions{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:8px}.gym-routine-timer-actions button{min-height:46px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.045);color:var(--text);font:900 12px DM Sans,sans-serif;cursor:pointer;touch-action:manipulation}.gym-routine-timer-actions button.primary{border-color:color-mix(in srgb,var(--accent) 38%,var(--border));background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent2)}.gym-routine-timer-note{margin-top:10px;color:var(--muted);font-size:10px;line-height:1.4;text-align:center}
       #phase-active .series-input.quick-replace-active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg));caret-color:var(--accent)}#phase-active .series-input.quick-replace-active::placeholder{color:var(--text);opacity:.3;font-weight:700}
       #phase-active .gym-series-stepper{position:relative;min-width:0;width:100%}#phase-active .gym-series-stepper .series-input{padding-left:27px;padding-right:27px;-moz-appearance:textfield}#phase-active .gym-series-stepper .series-input::-webkit-inner-spin-button,#phase-active .gym-series-stepper .series-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}#phase-active .gym-series-step{position:absolute;top:50%;z-index:2;width:25px;height:36px;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);font-size:19px;font-weight:900;line-height:1;cursor:pointer;touch-action:manipulation;opacity:.72}#phase-active .gym-series-step.minus{left:1px}#phase-active .gym-series-step.plus{right:1px}#phase-active .gym-series-step:active{color:var(--accent2);opacity:1;transform:translateY(-50%) scale(.92)}
       #phase-active .gym-workout-tools{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(92px,.62fr);gap:7px;min-width:0}#phase-active .gym-rest-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;min-width:0}#phase-active .gym-workout-tool,#phase-active .gym-rest-cancel{min-height:36px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(255,255,255,.045);color:var(--text);font:800 11px DM Sans,sans-serif;cursor:pointer;touch-action:manipulation}#phase-active .gym-workout-tool.running{color:var(--accent2);border-color:color-mix(in srgb,var(--accent) 38%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent)}#phase-active .gym-workout-tool.undo{color:var(--muted)}#phase-active .gym-workout-tool.undo:not(:disabled){color:var(--text)}#phase-active .gym-workout-tool:disabled{cursor:default;opacity:.46}#phase-active .gym-rest-cancel{width:36px;color:#fca5a5;font-size:18px}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(126px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active #phase-active .finish-section{padding-bottom:132px}
@@ -1073,7 +1391,7 @@
 
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'&&readPendingState()) saveUserCloudState({immediate:true,silent:true});
-    if(document.visibilityState==='visible'){ processHealthRecoveryQueue(); tickManualRestTimer(); }
+    if(document.visibilityState==='visible'){ processHealthRecoveryQueue(); tickManualRestTimer(); tickRoutineTimer(); }
   });
   window.addEventListener('pagehide',()=>{ if(readPendingState()) saveUserCloudState({immediate:true,silent:true}); });
   window.addEventListener('online',()=>{ setCloudStatus('pending','Nube: reconectando'); saveUserCloudState({silent:true}); processHealthRecoveryQueue(); });
@@ -1081,7 +1399,7 @@
   window.addEventListener('keydown',event=>{ if(event.key==='Escape') closeHeartRateDetails(); });
 
   async function bootReliability(){
-    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); enhanceActiveWorkoutControls(); renderRestSettingsPanel(); await registerPwa();
+    revealAppContent(); installStyles(); cloudStatusElement(); ensureHeartRateModal(); appendNoteCatalogControls(); enhanceActiveWorkoutControls(); renderRestSettingsPanel(); decorateRoutineTimerBadges(); await registerPwa();
     setTimeout(async()=>{ await loadHealthProfile(); renderHealthSettings(); processHealthRecoveryQueue(); },2500);
     setInterval(processHealthRecoveryQueue,5*60*1000);
   }
