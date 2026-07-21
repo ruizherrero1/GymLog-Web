@@ -427,6 +427,130 @@
     document.getElementById('heartRateDetailOverlay')?.classList.remove('open');
   };
 
+  function calendarHeartRateHtml(log){
+    const values=heartValues(log);
+    if(!values.length) return '';
+    const metrics=healthForLog(log).metrics || {};
+    const average=Number.isFinite(Number(metrics.averageHeartRate))
+      ? Math.round(Number(metrics.averageHeartRate))
+      : Math.round(values.reduce((sum,value)=>sum+value,0)/values.length);
+    const maximum=Number.isFinite(Number(metrics.maxHeartRate))
+      ? Math.round(Number(metrics.maxHeartRate))
+      : Math.max(...values);
+    const minimum=Math.min(...values);
+    const minutes=Math.max(1,Math.round((Number(log.duration)||0)/60));
+    const zones=zoneDurations(log);
+    const zoneTotal=zones?.reduce((sum,seconds)=>sum+seconds,0) || 0;
+    const zoneColors=['#60a5fa','#34d399','#facc15','#fb923c','#ef4444'];
+    const zoneBar=zoneTotal ? `<div class="gym-calendar-hr-zones" aria-label="Tiempo por zonas">${zones.map((seconds,index)=>seconds > 0 ? `<span style="width:${Math.max(1,(seconds/zoneTotal)*100)}%;background:${zoneColors[index]}" title="Z${index+1}: ${Math.round(seconds/60)} min"></span>` : '').join('')}</div>` : '';
+    return `<section class="gym-calendar-hr" data-log-id="${escapeAttribute(log.id)}">
+      <div class="gym-calendar-hr-head">
+        <div class="gym-calendar-hr-title"><span class="gym-calendar-hr-icon" aria-hidden="true">&#9829;</span><span>Frecuencia cardiaca<small>${values.length.toLocaleString('es-ES')} lecturas &middot; ${minutes} min</small></span></div>
+        <button type="button" class="gym-calendar-hr-open" onclick="openHeartRateDetails('${escapeAttribute(log.id)}')">Ampliar</button>
+      </div>
+      <div class="gym-calendar-hr-stats">
+        <span><small>Media</small><strong>${average}</strong><em>bpm</em></span>
+        <span><small>M&aacute;xima</small><strong>${maximum}</strong><em>bpm</em></span>
+        <span><small>M&iacute;nima</small><strong>${minimum}</strong><em>bpm</em></span>
+      </div>
+      <div class="gym-calendar-hr-chart"><canvas class="gym-calendar-hr-canvas" data-log-id="${escapeAttribute(log.id)}" aria-label="Grafica de frecuencia cardiaca de la sesion"></canvas><div class="gym-calendar-hr-tooltip"></div></div>
+      ${zoneBar}
+      <div class="gym-calendar-hr-axis"><span>Inicio</span><span>${minutes} min</span></div>
+    </section>`;
+  }
+
+  function drawCalendarHeartRate(canvas,log){
+    const values=heartValues(log);
+    if(!canvas || !values.length) return;
+    const rect=canvas.getBoundingClientRect();
+    const dpr=window.devicePixelRatio || 1;
+    const width=Math.max(260,Math.round(rect.width || 560));
+    const height=Math.max(126,Math.round(rect.height || 150));
+    canvas.width=width*dpr; canvas.height=height*dpr;
+    const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    const pad=8,top=12,bottom=9,chartW=width-pad*2,chartH=height-top-bottom;
+    const rawMin=Math.min(...values),rawMax=Math.max(...values);
+    const min=Math.max(35,Math.floor(rawMin/10)*10-5);
+    const max=Math.min(245,Math.ceil(rawMax/10)*10+5);
+    const range=max-min || 1;
+    const styles=getComputedStyle(document.documentElement);
+    const border=styles.getPropertyValue('--border').trim() || 'rgba(255,255,255,.14)';
+    const accent=styles.getPropertyValue('--done').trim() || '#34d399';
+    const x=index=>pad+(index/(values.length-1||1))*chartW;
+    const y=value=>top+chartH-((value-min)/range)*chartH;
+    ctx.clearRect(0,0,width,height);
+    ctx.lineWidth=1;
+    for(let index=0;index<3;index++){
+      const lineY=top+(chartH*index/2);
+      ctx.strokeStyle=border; ctx.beginPath(); ctx.moveTo(pad,lineY); ctx.lineTo(width-pad,lineY); ctx.stroke();
+    }
+    const points=downsample(values,Math.min(360,Math.max(160,width)));
+    const gradient=ctx.createLinearGradient(0,top,0,height);
+    gradient.addColorStop(0,'rgba(52,211,153,.34)');
+    gradient.addColorStop(1,'rgba(52,211,153,0)');
+    ctx.beginPath();
+    points.forEach((point,index)=>index ? ctx.lineTo(x(point.index),y(point.value)) : ctx.moveTo(x(point.index),y(point.value)));
+    ctx.lineTo(x(values.length-1),height-bottom); ctx.lineTo(x(0),height-bottom); ctx.closePath();
+    ctx.fillStyle=gradient; ctx.fill();
+    ctx.beginPath();
+    points.forEach((point,index)=>index ? ctx.lineTo(x(point.index),y(point.value)) : ctx.moveTo(x(point.index),y(point.value)));
+    ctx.lineWidth=2.4; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle=accent; ctx.shadowColor='rgba(52,211,153,.45)'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    const average=values.reduce((sum,value)=>sum+value,0)/values.length;
+    ctx.setLineDash([5,5]); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad,y(average)); ctx.lineTo(width-pad,y(average)); ctx.stroke(); ctx.setLineDash([]);
+
+    const tooltip=canvas.parentElement?.querySelector('.gym-calendar-hr-tooltip');
+    const showPoint=clientX=>{
+      if(!tooltip) return;
+      const bounds=canvas.getBoundingClientRect();
+      const px=Math.max(0,Math.min(bounds.width,clientX-bounds.left));
+      const index=Math.max(0,Math.min(values.length-1,Math.round((px/(bounds.width||1))*(values.length-1))));
+      const minute=(Number(log.duration)||0)*(index/(values.length-1||1))/60;
+      tooltip.textContent=`${values[index]} bpm \u00b7 min ${minute.toFixed(1)}`;
+      tooltip.style.left=`${Math.max(48,Math.min(bounds.width-48,px))}px`;
+      tooltip.classList.add('show');
+    };
+    canvas.onpointermove=event=>showPoint(event.clientX);
+    canvas.onpointerdown=event=>showPoint(event.clientX);
+    canvas.onpointerleave=()=>tooltip?.classList.remove('show');
+  }
+
+  function renderCalendarHeartRate(ds){
+    const detail=document.getElementById('calDetail');
+    if(!detail) return;
+    const entries=state.workoutLog.filter(entry=>entry.date===ds);
+    const cards=[...detail.querySelectorAll('.history-session-card')];
+    cards.forEach((card,index)=>{
+      card.querySelector('.gym-calendar-hr')?.remove();
+      const log=entries[index],html=log ? calendarHeartRateHtml(log) : '';
+      if(!html) return;
+      const exercises=card.querySelector('.history-ex-list');
+      exercises?.insertAdjacentHTML('beforebegin',html);
+    });
+    requestAnimationFrame(()=>detail.querySelectorAll('.gym-calendar-hr-canvas').forEach(canvas=>{
+      const log=state.workoutLog.find(entry=>entry.id===canvas.dataset.logId);
+      if(log) drawCalendarHeartRate(canvas,log);
+    }));
+  }
+
+  const baseShowDayDetail = showDayDetail;
+  showDayDetail = function(ds){
+    const result=baseShowDayDetail.apply(this,arguments);
+    renderCalendarHeartRate(ds);
+    return result;
+  };
+
+  let calendarHeartRateResizeFrame=0;
+  window.addEventListener('resize',()=>{
+    cancelAnimationFrame(calendarHeartRateResizeFrame);
+    calendarHeartRateResizeFrame=requestAnimationFrame(()=>{
+      document.querySelectorAll('.gym-calendar-hr-canvas').forEach(canvas=>{
+        const log=state.workoutLog.find(entry=>entry.id===canvas.dataset.logId);
+        if(log) drawCalendarHeartRate(canvas,log);
+      });
+    });
+  });
+
   const baseHealthSessionHtml = healthSessionHtml;
   healthSessionHtml = function(log){
     const html=baseHealthSessionHtml(log);
@@ -635,9 +759,10 @@
       .gym-hr-canvas-wrap{position:relative}.gym-hr-canvas-wrap canvas{width:100%;height:320px;display:block;touch-action:pan-y}.gym-hr-tooltip{display:none;position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800;pointer-events:none}
       .gym-hr-stats,.gym-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.gym-hr-stats span,.gym-analysis-grid span{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px;color:var(--muted);font-size:11px}.gym-hr-stats strong,.gym-analysis-grid strong{display:block;color:var(--text);font-size:15px;margin-top:3px}
       .gym-health-analysis,.gym-health-profile{margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--card)}.gym-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gym-profile-grid label{font-size:11px;color:var(--muted);font-weight:800}.gym-profile-grid input{width:100%;margin-top:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px;box-sizing:border-box}
+      .gym-calendar-hr{position:relative;box-sizing:border-box;max-width:100%;margin:14px 0 4px;padding:14px;border:1px solid color-mix(in srgb,var(--done) 24%,var(--border));border-radius:17px;background:linear-gradient(145deg,color-mix(in srgb,var(--done) 10%,var(--card)),color-mix(in srgb,var(--bg) 96%,transparent));overflow:hidden}.gym-calendar-hr:before{content:\x27\x27;position:absolute;width:150px;height:150px;right:-70px;top:-95px;border-radius:50%;background:color-mix(in srgb,var(--done) 16%,transparent);filter:blur(4px);pointer-events:none}.gym-calendar-hr-head,.gym-calendar-hr-title{display:flex;align-items:center}.gym-calendar-hr-head{position:relative;z-index:1;justify-content:space-between;gap:10px;min-width:0}.gym-calendar-hr-title{min-width:0}.gym-calendar-hr-open{flex:0 0 auto}.gym-calendar-hr-title{gap:9px;font-size:13px;font-weight:900}.gym-calendar-hr-title small{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-weight:700}.gym-calendar-hr-icon{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;color:#fff;background:linear-gradient(145deg,#fb7185,#ef4444);box-shadow:0 6px 16px rgba(239,68,68,.28);font-size:16px}.gym-calendar-hr-open{border:1px solid color-mix(in srgb,var(--done) 28%,var(--border));background:color-mix(in srgb,var(--done) 12%,var(--surface));color:var(--text);border-radius:10px;padding:7px 10px;font-size:10px;font-weight:900;cursor:pointer}.gym-calendar-hr-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0 6px}.gym-calendar-hr-stats span{display:grid;grid-template-columns:auto auto;align-items:baseline;justify-content:start;column-gap:3px;padding:8px 9px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06)}.gym-calendar-hr-stats small{grid-column:1/-1;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.gym-calendar-hr-stats strong{font-size:18px;line-height:1.15}.gym-calendar-hr-stats em{color:var(--muted);font-size:9px;font-style:normal;font-weight:800}.gym-calendar-hr-chart{position:relative;height:150px;margin-top:2px}.gym-calendar-hr-canvas{display:block;width:100%;height:150px;touch-action:pan-y}.gym-calendar-hr-tooltip{position:absolute;top:5px;display:none;transform:translateX(-50%);padding:6px 8px;border:1px solid var(--border);border-radius:999px;background:color-mix(in srgb,var(--bg) 92%,transparent);box-shadow:0 7px 18px rgba(0,0,0,.28);font-size:9px;font-weight:900;white-space:nowrap;pointer-events:none}.gym-calendar-hr-tooltip.show{display:block}.gym-calendar-hr-zones{display:flex;height:4px;margin:3px 8px 0;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.06)}.gym-calendar-hr-zones span{display:block;height:100%}.gym-calendar-hr-axis{display:flex;justify-content:space-between;margin:5px 8px 0;color:var(--muted);font-size:9px;font-weight:800}
       .gym-note-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.gym-note-toolbar span{color:var(--muted);font-size:11px}.gym-note-start{margin-left:6px}
       .gym-update-prompt{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:10030;display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:10px 12px;box-shadow:0 18px 40px rgba(0,0,0,.45)}.gym-update-prompt span{flex:1;font-weight:800}.gym-update-prompt button{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:800}
-      @media(max-width:640px){.gym-hr-stats,.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}}
+      @media(max-width:640px){.gym-hr-stats,.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}.gym-calendar-hr{padding:12px;margin-inline:-2px}.gym-calendar-hr-chart,.gym-calendar-hr-canvas{height:138px}.gym-calendar-hr-stats strong{font-size:17px}}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.gym-cloud-status,.gym-update-prompt{transition:none!important}}
     `;
     document.head.appendChild(style);
