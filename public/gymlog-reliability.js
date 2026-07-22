@@ -119,6 +119,8 @@
 
   function mergeStates(remoteState, localState){
     const merged = { ...clone(remoteState || {}), ...clone(localState || {}) };
+    const remotePlanVersion = Number(remoteState?.settings?.routinePlanVersion) || 0;
+    const localPlanVersion = Number(localState?.settings?.routinePlanVersion) || 0;
     merged.routines = mergeByKey(remoteState?.routines, localState?.routines, item => item?.id || JSON.stringify(item));
     merged.workoutLog = mergeByKey(
       remoteState?.workoutLog,
@@ -129,6 +131,14 @@
     merged.deletedWorkoutLog = mergeByKey(remoteState?.deletedWorkoutLog, localState?.deletedWorkoutLog, item => item?.id || item?.log?.id || JSON.stringify(item));
     merged.weightLog = mergeByKey(remoteState?.weightLog, localState?.weightLog, item => item?.date || JSON.stringify(item));
     merged.settings = { ...(remoteState?.settings || {}), ...(localState?.settings || {}) };
+    if(remotePlanVersion !== localPlanVersion){
+      const authoritative = remotePlanVersion > localPlanVersion ? remoteState : localState;
+      const planVersion = Math.max(remotePlanVersion,localPlanVersion);
+      merged.routines = clone(authoritative?.routines || []);
+      merged.settings.routinePlanVersion = planVersion;
+      merged.settings.notesSections = clone(authoritative?.settings?.notesSections || []);
+      merged.settings.notesText = authoritative?.settings?.notesText || '';
+    }
     return typeof normalizeState === 'function' ? normalizeState(merged) : merged;
   }
 
@@ -730,8 +740,19 @@
     renderRoutineTimerPanel();
     return result;
   };
+  function completeStoppedTimedRoutine(){
+    const routine = state.routines.find(item=>item.id===currentRoutineId);
+    const completesWorkout = routine?.timerCompletesWorkout || routine?.id === 'cardio-bike-indoor';
+    if(!completesWorkout || !routineTimerState || routineTimerState.running || routineTimerValue() <= 0) return false;
+    Object.values(workoutData || {}).forEach(exercise => {
+      (exercise?.series || []).forEach(series => { series.done = true; });
+    });
+    if(typeof persistActiveWorkout === 'function') persistActiveWorkout();
+    return true;
+  }
   const baseFinishWorkoutMobile = finishWorkout;
   finishWorkout = function(){
+    completeStoppedTimedRoutine();
     cancelManualRestTimer(false);
     clearWorkoutAction();
     document.body.classList.remove('gym-workout-tools-active');
@@ -1290,6 +1311,10 @@
         await gymLogCloudClient.from('gymlog_health_recovery_queue').update({status:'cancelled',last_error:'session_not_found',updated_at:new Date().toISOString()}).eq('user_id',row.user_id).eq('session_local_id',row.session_local_id).eq('attempt',row.attempt);
         return;
       }
+      if(!needsFitbitRecovery(log)){
+        await gymLogCloudClient.from('gymlog_health_recovery_queue').update({status:'cancelled',last_error:'outside_recovery_window',updated_at:new Date().toISOString()}).eq('user_id',row.user_id).eq('session_local_id',row.session_local_id).eq('attempt',row.attempt);
+        return;
+      }
       await gymLogCloudClient.from('gymlog_health_recovery_queue').update({status:'running',updated_at:new Date().toISOString()}).eq('user_id',row.user_id).eq('session_local_id',row.session_local_id).eq('attempt',row.attempt);
       const ok=await baseSyncWorkoutToHealth(log.id,{silent:true});
       await gymLogCloudClient.from('gymlog_health_recovery_queue').update({status:ok?'done':'failed',last_error:ok?null:(healthForLog(log).error||'retry_failed'),updated_at:new Date().toISOString()}).eq('user_id',row.user_id).eq('session_local_id',row.session_local_id).eq('attempt',row.attempt);
@@ -1384,6 +1409,7 @@
       .gym-note-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.gym-note-toolbar span{color:var(--muted);font-size:11px}.gym-note-start{margin-left:6px}
       .gym-update-prompt{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:10030;display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:10px 12px;box-shadow:0 18px 40px rgba(0,0,0,.45)}.gym-update-prompt span{flex:1;font-weight:800}.gym-update-prompt button{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:800}
       @media(max-width:640px){.gym-hr-stats,.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(122px + env(safe-area-inset-bottom,0px))}.gym-calendar-hr{padding:12px;margin-inline:-2px}.gym-calendar-hr-chart,.gym-calendar-hr-canvas{height:138px}.gym-calendar-hr-stats strong{font-size:17px}#phase-active .gym-series-step{height:32px;width:23px;font-size:18px}#phase-active .gym-series-stepper .series-input{padding-left:24px;padding-right:24px}#phase-active .gym-workout-tools{grid-template-columns:minmax(0,1fr) 96px}}
+      .health-actions-primary{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}.health-actions-primary .ghost-btn{min-height:46px}.health-actions-primary .ghost-btn[hidden]{display:none}.gym-health-more{margin-top:10px;border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--surface) 72%,transparent);overflow:hidden}.gym-health-more summary{padding:13px 14px;color:var(--text);font-size:12px;font-weight:900;cursor:pointer;list-style:none;touch-action:manipulation}.gym-health-more summary::-webkit-details-marker{display:none}.gym-health-more summary:after{content:'+';float:right;color:var(--accent2);font-size:17px;line-height:.8}.gym-health-more[open] summary:after{content:'-'}.gym-health-more[open] summary{border-bottom:1px solid var(--border)}.gym-health-more-title{margin:14px 14px 8px;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.gym-health-more .health-actions{padding:0 12px}.gym-health-more .health-note{margin:8px 14px 2px}.gym-health-more .gym-health-signout{width:calc(100% - 24px);margin:14px 12px 12px;color:#fca5a5}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.gym-cloud-status,.gym-update-prompt{transition:none!important}}
     `;
     document.head.appendChild(style);

@@ -35,7 +35,13 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v9-20260721-routine-timers'), 'Los temporizadores de rutina deben invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v10-20260722-health-routines'), 'La actualizacion de Health y rutinas debe invalidar la cache PWA anterior.');
+check(html.includes('id="gymHealthMoreOptions"'), 'Las opciones secundarias de Health deben estar agrupadas en un panel compacto.');
+check(html.includes('function healthRecoveryEligible(log)'), 'La recuperacion de FC debe respetar una fecha de inicio.');
+check(occurrences(html, 'healthRecoveryEligible(log)') > 1, 'El limite de FC debe aplicarse a contadores y acciones.');
+check(reliability.includes('remotePlanVersion !== localPlanVersion'), 'La version del plan debe impedir que reaparezcan rutinas antiguas.');
+check(reliability.includes("routine?.timerCompletesWorkout || routine?.id === 'cardio-bike-indoor'"), 'La bicicleta debe poder completarse con el cronometro parado.');
+check(reliability.includes('routineTimerState.running || routineTimerValue() <= 0'), 'Solo un cronometro parado y con tiempo debe completar la bicicleta.');
 check(reliability.includes('beginQuickReplaceSeriesInput(input)'), 'Los campos de series deben vaciarse al recibir foco.');
 check(reliability.includes('input.dataset.quickReplaceValue = input.value'), 'El valor anterior debe conservarse como respaldo.');
 check(reliability.includes("if(input.value.trim() === '') input.value = input.dataset.quickReplaceValue || ''"), 'Salir sin escribir debe restaurar el valor anterior.');
