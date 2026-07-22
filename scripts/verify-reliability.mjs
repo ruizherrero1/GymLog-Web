@@ -35,7 +35,13 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v11-20260722-exercise-search'), 'La busqueda de ejercicios debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v12-20260722-cloud-toast'), 'El aviso de nube debe invalidar la cache PWA anterior.');
+check(reliability.includes('let cloudStatusHideTimer = null'), 'El aviso de nube debe controlar su ocultacion automatica.');
+check(reliability.includes("kind === 'ok' ? 2200 : (kind === 'pending' ? 0 : 7000)"), 'Los estados de nube deben desaparecer segun su importancia.');
+check(reliability.includes('.gym-cloud-status.visible{opacity:.88'), 'El aviso de nube debe mostrarse como indicador temporal.');
+check(reliability.includes('pointer-events:none'), 'El aviso de nube nunca debe bloquear botones.');
+check(reliability.includes('top:calc(8px + env(safe-area-inset-top,0px))'), 'El aviso de nube debe ocupar una esquina segura superior.');
+check(reliability.includes('bottom:auto!important'), 'El indicador superior debe ignorar las posiciones inferiores antiguas.');
 check(html.includes('class="preview-exercise-row"'), 'El resumen previo debe mostrar los ejercicios en filas.');
 check(html.includes('data-search-provider="google"'), 'Cada ejercicio debe ofrecer una busqueda en Google.');
 check(html.includes('data-search-provider="youtube"'), 'Cada ejercicio debe ofrecer una busqueda en YouTube.');

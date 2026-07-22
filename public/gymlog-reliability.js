@@ -45,18 +45,18 @@
     return typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value));
   }
 
+  let cloudStatusHideTimer = null;
+
   function cloudStatusElement(){
     let element = document.getElementById('gymCloudStatus');
     if(element) return element;
-    element = document.createElement('button');
+    element = document.createElement('div');
     element.id = 'gymCloudStatus';
-    element.type = 'button';
-    element.className = 'gym-cloud-status pending';
+    element.className = 'gym-cloud-status pending visible';
+    element.setAttribute('role', 'status');
     element.setAttribute('aria-live', 'polite');
+    element.setAttribute('aria-atomic', 'true');
     element.title = 'Estado de sincronización privada';
-    element.addEventListener('click', () => {
-      if(typeof openModal === 'function') openModal('overlaySettings');
-    });
     element.textContent = 'Nube: iniciando';
     document.body.appendChild(element);
     return element;
@@ -64,8 +64,19 @@
 
   function setCloudStatus(kind, text){
     const element = cloudStatusElement();
-    element.className = `gym-cloud-status ${kind}`;
+    if(cloudStatusHideTimer){
+      clearTimeout(cloudStatusHideTimer);
+      cloudStatusHideTimer = null;
+    }
+    element.className = `gym-cloud-status ${kind} visible`;
     element.textContent = text;
+    const hideAfter = kind === 'ok' ? 2200 : (kind === 'pending' ? 0 : 7000);
+    if(hideAfter){
+      cloudStatusHideTimer = setTimeout(() => {
+        element.classList.remove('visible');
+        cloudStatusHideTimer = null;
+      }, hideAfter);
+    }
   }
 
   function recordPendingState(){
@@ -1391,7 +1402,7 @@
     if(document.getElementById('gymReliabilityStyles')) return;
     const style=document.createElement('style'); style.id='gymReliabilityStyles';
     style.textContent=`
-      .gym-cloud-status{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:92;border:1px solid var(--border);border-radius:999px;padding:7px 10px;font:800 11px DM Sans,sans-serif;color:var(--text);background:color-mix(in srgb,var(--bg) 88%,transparent);box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(14px)}
+      .gym-cloud-status{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:8px;bottom:auto!important;z-index:92;max-width:min(68vw,240px);box-sizing:border-box;border:1px solid var(--border);border-radius:999px;padding:6px 9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:800 10px DM Sans,sans-serif;color:var(--text);background:color-mix(in srgb,var(--bg) 90%,transparent);box-shadow:0 5px 16px rgba(0,0,0,.22);backdrop-filter:blur(12px);pointer-events:none;user-select:none;opacity:0;visibility:hidden;transform:translateY(-7px);transition:opacity .18s ease,transform .18s ease,visibility 0s linear .18s}.gym-cloud-status.visible{opacity:.88;visibility:visible;transform:translateY(0);transition-delay:0s}
       .gym-cloud-status.ok{color:var(--done)}.gym-cloud-status.pending,.gym-cloud-status.warning{color:var(--accent2)}.gym-cloud-status.error{color:#fca5a5}
       .gym-hr-overlay{display:none;position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.72);padding:16px;overflow:auto}.gym-hr-overlay.open{display:flex;align-items:center;justify-content:center}
       .gym-hr-dialog{width:min(760px,100%);max-height:92vh;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:0 28px 70px rgba(0,0,0,.55)}
