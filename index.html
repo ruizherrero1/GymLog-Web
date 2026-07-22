@@ -831,8 +831,12 @@
 .preview-stat-card{padding:16px 14px;border-radius:18px;background:rgba(255,255,255,.055);border:none;box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 2px 8px rgba(0,0,0,0.20);}
 .preview-stat-label{font-size:12px;color:var(--muted);margin-top:6px;}
 .preview-stat-value{font-size:20px;font-weight:900;line-height:1.1;color:var(--text);}
-.preview-exercise-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;justify-content:flex-start;}
-.preview-ex-pill{padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.06);font-weight:700;color:var(--text);}
+.preview-exercise-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:4px;}
+.preview-exercise-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 11px 10px 14px;border-radius:16px;background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.07);}
+.preview-exercise-name{min-width:0;color:var(--text);font-size:14px;font-weight:800;line-height:1.25;overflow-wrap:anywhere;}
+.preview-exercise-search{display:grid;grid-template-columns:repeat(2,auto);gap:6px;}
+.preview-search-btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 9px;border-radius:11px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.055);color:var(--text);font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap;touch-action:manipulation;}
+.preview-search-btn.google{color:#93c5fd}.preview-search-btn.youtube{color:#fca5a5}.preview-search-btn:active{transform:scale(.96);background:rgba(255,255,255,.10);}
 @media (max-width:480px){
   .preview-shell{padding:16px;border-radius:22px;}
   .preview-header-pro{gap:14px;}
@@ -847,8 +851,10 @@
   .preview-stat-card:first-child{grid-column:1 / -1;}
   .preview-stat-value{font-size:19px;}
   .preview-stat-label{font-size:11px;}
-  .preview-exercise-list{gap:8px;margin-top:0;}
-  .preview-ex-pill{padding:8px 11px;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+  .preview-exercise-list{gap:7px;margin-top:0;}
+  .preview-exercise-row{gap:8px;padding:9px 9px 9px 12px;border-radius:14px;}
+  .preview-exercise-name{font-size:13px;}
+  .preview-search-btn{min-height:35px;padding:0 8px;font-size:9px;border-radius:10px;}
 }
 .health-connect-card{background:linear-gradient(180deg,rgba(110,231,183,.1),rgba(255,255,255,.02));border:1px solid rgba(110,231,183,.24);border-radius:18px;padding:14px;margin-bottom:12px;}
 .health-connect-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
@@ -5525,7 +5531,19 @@ function showPreview(id){
   document.getElementById('phase-preview').style.display='block';
   document.getElementById('phase-active').style.display='none';
 
-  const previewExercises = r.exercises.map(ex => `<span class="preview-ex-pill">${escapeHtml(ex.name)}</span>`).join('');
+  const previewExercises = r.exercises.map(ex => {
+    const name = String(ex.name || 'Ejercicio');
+    const query = encodeURIComponent(name);
+    return `
+      <div class="preview-exercise-row" data-exercise-name="${escapeAttribute(name)}">
+        <div class="preview-exercise-name">${escapeHtml(name)}</div>
+        <div class="preview-exercise-search" aria-label="Buscar ejercicio">
+          <a class="preview-search-btn google" data-search-provider="google" href="https://www.google.com/search?q=${query}" target="_blank" rel="noopener noreferrer" aria-label="Buscar ${escapeAttribute(name)} en Google">Google</a>
+          <a class="preview-search-btn youtube" data-search-provider="youtube" href="https://www.youtube.com/results?search_query=${query}" target="_blank" rel="noopener noreferrer" aria-label="Buscar ${escapeAttribute(name)} en YouTube">YouTube</a>
+        </div>
+      </div>
+    `;
+  }).join('');
   document.getElementById('previewContent').innerHTML = `
     <div class="preview-shell">
       <div class="preview-header-pro">
