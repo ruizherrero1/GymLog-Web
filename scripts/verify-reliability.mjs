@@ -35,7 +35,13 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v10-20260722-health-routines'), 'La actualizacion de Health y rutinas debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v11-20260722-exercise-search'), 'La busqueda de ejercicios debe invalidar la cache PWA anterior.');
+check(html.includes('class="preview-exercise-row"'), 'El resumen previo debe mostrar los ejercicios en filas.');
+check(html.includes('data-search-provider="google"'), 'Cada ejercicio debe ofrecer una busqueda en Google.');
+check(html.includes('data-search-provider="youtube"'), 'Cada ejercicio debe ofrecer una busqueda en YouTube.');
+check(html.includes('https://www.google.com/search?q=${query}'), 'Google debe recibir el nombre exacto del ejercicio.');
+check(html.includes('https://www.youtube.com/results?search_query=${query}'), 'YouTube debe recibir el nombre exacto del ejercicio.');
+check(occurrences(html, 'target="_blank" rel="noopener noreferrer"') >= 2, 'Las busquedas deben abrirse de forma aislada y segura.');
 check(html.includes('id="gymHealthMoreOptions"'), 'Las opciones secundarias de Health deben estar agrupadas en un panel compacto.');
 check(html.includes('function healthRecoveryEligible(log)'), 'La recuperacion de FC debe respetar una fecha de inicio.');
 check(occurrences(html, 'healthRecoveryEligible(log)') > 1, 'El limite de FC debe aplicarse a contadores y acciones.');
