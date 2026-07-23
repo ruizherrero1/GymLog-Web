@@ -35,7 +35,7 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v12-20260722-cloud-toast'), 'El aviso de nube debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v13-20260723-progression-health'), 'La progresion y Health deben invalidar la cache PWA anterior.');
 check(reliability.includes('let cloudStatusHideTimer = null'), 'El aviso de nube debe controlar su ocultacion automatica.');
 check(reliability.includes("kind === 'ok' ? 2200 : (kind === 'pending' ? 0 : 7000)"), 'Los estados de nube deben desaparecer segun su importancia.');
 check(reliability.includes('.gym-cloud-status.visible{opacity:.88'), 'El aviso de nube debe mostrarse como indicador temporal.');
@@ -78,6 +78,15 @@ check(reliability.includes("if(typeof playTimerBeep === 'function') playTimerBee
 check(reliability.includes("Cronómetro libre (cuenta hacia arriba)"), 'El editor debe ofrecer cronometro libre.');
 check(reliability.includes("routine.timerDurationSeconds = timerConfig.duration"), 'El editor debe guardar la duracion de la cuenta atras.');
 check(reliability.includes("activeExercises.parentNode.insertBefore(panel,activeExercises)"), 'El temporizador debe quedar visible antes de los ejercicios.');
+check(html.includes('function exerciseProgressionSuggestion(exercise)'), 'El entreno debe sugerir progresion sin aplicarla automaticamente.');
+check(html.includes("title:'Prueba +2,5 kg'"), 'La progresion con peso debe proponer un incremento conservador.');
+check(html.includes("data-selected=\"false\""), 'El RPE de fin de sesion debe ser opcional.');
+check(html.includes('...(selectedRpe ? { rpe:selectedRpe } : {})'), 'La sesion debe guardar RPE solo cuando el usuario lo elige.');
+check(html.includes('...(finishNote ? { note:finishNote } : {})'), 'La nota rapida debe guardarse solo cuando contiene texto.');
+check(html.includes("type: activityType"), 'Google Health debe distinguir la bicicleta de la fuerza.');
+check(html.includes('googleSummaryUpdated: !!result.googleSummaryUpdated'), 'La app debe conservar el resultado del resumen enviado a Google.');
+check(reliability.includes('class=\"gym-workout-tool gym-rest-pill\"'), 'El descanso debe mostrarse como una pastilla compacta.');
+check(reliability.includes('justify-content:flex-end'), 'Los controles auxiliares del entreno deben quedar compactos y alineados.');
 
 for(const file of ['public/gymlog-reliability.js','public/gymlog-note-templates.js','public/service-worker.js','scripts/prepare-classic-web.mjs']){
   const result = spawnSync(process.execPath, ['--check', file], { cwd:root, encoding:'utf8' });

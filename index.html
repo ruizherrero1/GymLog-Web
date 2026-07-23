@@ -4742,7 +4742,15 @@
   <div class="modal" style="max-width:340px; text-align:center;">
     <div style="font-size:40px; margin-bottom:12px;">🏁</div>
     <div class="modal-title" style="margin-bottom:8px;">¿Terminar entreno?</div>
-    <p style="color:var(--muted); font-size:14px; margin-bottom:24px;">Se guardará todo el progreso de esta sesión.</p>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:14px;">Se guardará todo el progreso de esta sesión.</p>
+    <div class="finish-feedback">
+      <div class="finish-rpe-head"><label for="finishRpe">Esfuerzo RPE (opcional)</label><strong id="finishRpeValue">Sin indicar</strong></div>
+      <input id="finishRpe" type="range" min="1" max="10" step="1" value="7" data-selected="false" oninput="selectFinishRpe(this.value)">
+      <div class="finish-rpe-scale"><span>1 suave</span><span>10 máximo</span></div>
+      <button type="button" class="finish-rpe-clear" onclick="clearFinishRpe()">Quitar RPE</button>
+      <label class="finish-note-label" for="finishNote">Nota rápida (opcional)</label>
+      <textarea id="finishNote" maxlength="240" rows="2" placeholder="Ej.: buena técnica, molestias, sensaciones..."></textarea>
+    </div>
     <div style="display:flex; gap:10px;">
       <button class="btn" style="flex:1; background:rgba(255,255,255,0.08); color:var(--text);" onclick="closeModal('overlayConfirmFinish')">Seguir entrenando</button>
       <button class="btn btn-primary" style="flex:1;" onclick="closeModal('overlayConfirmFinish'); finishWorkout();">Sí, terminar</button>
@@ -4810,7 +4818,7 @@
         <div class="chart-title" style="margin:0">Google Health + Fitbit Air</div>
         <div class="health-status" id="healthConnectionStatus">Sin conectar</div>
       </div>
-      <div class="backup-copy">Registra las sesiones de fuerza y recupera frecuencia cardiaca y zonas cuando Fitbit sincronice.</div>
+      <div class="backup-copy">Envía sesiones detalladas a Google Health y, cuando Fitbit sincroniza, añade FC media, zonas y datos del entreno al propio registro.</div>
       <div id="healthSignedOutPanel">
         <div class="health-auth-row">
           <input class="health-auth-input" id="healthLoginEmail" type="email" inputmode="email" autocomplete="email" placeholder="Tu email de Google">
@@ -4832,7 +4840,7 @@
           <summary>Mas opciones y copias</summary>
           <div class="gym-health-more-title">Frecuencia cardiaca</div>
           <div class="health-actions">
-            <button class="ghost-btn" id="retryHealthMetricsButton" onclick="retryHealthMetrics()">Actualizar metricas recientes</button>
+            <button class="ghost-btn" id="retryHealthMetricsButton" onclick="retryHealthMetrics()">Actualizar detalles en Google</button>
             <button class="ghost-btn" id="recoverFitbitMetricsButton" onclick="recoverMissingFitbitData()">Recuperar FC pendiente</button>
           </div>
           <div class="health-note" id="healthRecoveryLimitNote"></div>
@@ -5598,6 +5606,34 @@ function getLastExercisePerformance(exerciseName){
   }
   return null;
 }
+function exerciseRepRange(exercise){
+  const target = Math.max(1, Math.round(+exercise?.defaultReps || 1));
+  const min = Math.max(1, Math.round(+exercise?.repMin || Math.max(1,target-2)));
+  const max = Math.max(min, Math.round(+exercise?.repMax || target));
+  return { min, max };
+}
+function exerciseProgressionSuggestion(exercise){
+  const last = getLastExercisePerformance(exercise?.name || '');
+  if(exercise?.type === 'time'){
+    if(!last) return { kind:'first', title:'Primera referencia', text:'Mantén un ritmo cómodo y registra el tiempo real.' };
+    return { kind:'repeat', title:'Repite con control', text:'Compara tiempo y sensaciones con la última sesión.' };
+  }
+  const range = exerciseRepRange(exercise);
+  if(!last) return { kind:'first', title:`Objetivo ${range.min}-${range.max} reps`, text:'Primera referencia; prioriza técnica y deja margen.' };
+  const clean = cleanExerciseSeries(last, last.series || []);
+  const reps = clean.considered.map(series=>Math.max(0,+series.reps||0)).filter(Number.isFinite);
+  if(!reps.length) return { kind:'repeat', title:'Repite objetivo', text:`Busca ${range.min}-${range.max} repeticiones por serie.` };
+  const allAtMax = reps.every(value=>value >= range.max);
+  const allInRange = reps.every(value=>value >= range.min);
+  if(allAtMax && exercise.type === 'weight') return { kind:'up', title:'Prueba +2,5 kg', text:`Solo si mantienes al menos ${range.min} reps con buena técnica.` };
+  if(allAtMax) return { kind:'up', title:'Intenta +1 rep', text:'Sugerencia orientativa; no cambia la rutina automáticamente.' };
+  if(allInRange) return { kind:'up', title:'Intenta +1 rep', text:'Añádela en la serie más baja si hoy te ves bien.' };
+  return { kind:'repeat', title:'Repite peso y objetivo', text:`Consolida primero el rango ${range.min}-${range.max}.` };
+}
+function exerciseProgressionHtml(exercise){
+  const suggestion = exerciseProgressionSuggestion(exercise);
+  return `<div class="progression-suggestion ${suggestion.kind}"><span class="progression-suggestion-icon">${suggestion.kind === 'up' ? '↑' : '•'}</span><div><strong>${escapeHtml(suggestion.title)}</strong><small>${escapeHtml(suggestion.text)}</small></div></div>`;
+}
 function cleanExerciseSeries(exercise, series = []){
   const safeSeries = Array.isArray(series) ? series : [];
   const done = safeSeries.filter(s => s.done);
@@ -5997,6 +6033,9 @@ function addSeries(exId){
   renderActiveExercises();
 }
 function askFinishWorkout(){
+  clearFinishRpe();
+  const note = document.getElementById('finishNote');
+  if(note) note.value = '';
   openModal('overlayConfirmFinish');
 }
 
@@ -6166,7 +6205,7 @@ function deleteExerciseFromRoutine(routineId, exerciseId){
 }
 
 function addExerciseToForm(){
-  formExercises.push({id: uid('e'), name:'', type:'weight', defaultSeries:3, defaultReps:10, defaultDuration:60, defaultWeight:0});
+  formExercises.push({id: uid('e'), name:'', type:'weight', defaultSeries:3, defaultReps:10, repMin:8, repMax:10, defaultDuration:60, defaultWeight:0});
   formDirty = true;
   renderFormExercises();
 }
@@ -6721,6 +6760,7 @@ function showDayDetail(ds){
                   <div class="history-chip muted">${done}/${total} series</div>
                   <div class="history-chip muted">${completion}% completado</div>
                 </div>
+                ${sessionFeedbackHtml(e)}
               </div>
             </div>
             <div class="history-ex-list">
@@ -7789,6 +7829,7 @@ function renderActiveExercises(){
               <button class="exercise-expand-btn" onclick="toggleExercisePanel('${ex.id}')">${isExpanded ? '-' : '+'}</button>
             </div>
           </div>
+          ${exerciseProgressionHtml(ex)}
           ${showPerformance ? lastExerciseComparisonHtml(ex, d.series) : ''}
           <div class="series-table">
             <div class="col-headers ${isTime ? 'time-row' : ''}">
@@ -7901,9 +7942,32 @@ function goToGrid(){
   }
   renderWorkoutGrid();
 }
+function selectFinishRpe(value){
+  const input = document.getElementById('finishRpe');
+  const label = document.getElementById('finishRpeValue');
+  const safe = Math.min(10, Math.max(1, Math.round(+value || 7)));
+  if(input){ input.value = String(safe); input.dataset.selected = 'true'; }
+  if(label) label.textContent = `${safe}/10`;
+}
+function sessionFeedbackHtml(entry){
+  const rpe = Number(entry?.rpe);
+  const hasRpe = Number.isFinite(rpe) && rpe >= 1 && rpe <= 10;
+  const note = String(entry?.note || '').trim();
+  if(!hasRpe && !note) return '';
+  return `<div class="session-feedback">${hasRpe ? `<span class="history-chip effort">RPE ${Math.round(rpe)}/10</span>` : ''}${note ? `<div class="session-feedback-note">${escapeHtml(note)}</div>` : ''}</div>`;
+}
+function clearFinishRpe(){
+  const input = document.getElementById('finishRpe');
+  const label = document.getElementById('finishRpeValue');
+  if(input){ input.value = '7'; input.dataset.selected = 'false'; }
+  if(label) label.textContent = 'Sin indicar';
+}
 function finishWorkout(){
   const r = state.routines.find(x=>x.id===currentRoutineId);
   if(!r) return;
+  const finishRpeInput = document.getElementById('finishRpe');
+  const selectedRpe = finishRpeInput?.dataset.selected === 'true' ? Math.min(10, Math.max(1, Math.round(+finishRpeInput.value || 7))) : null;
+  const finishNote = String(document.getElementById('finishNote')?.value || '').trim().slice(0,240);
   stopAllSeriesTimers();
   closeFocusTimer();
   releaseWorkoutWakeLock();
@@ -7920,6 +7984,8 @@ function finishWorkout(){
     routineName: r.name,
     duration: elapsed,
     durationLabel: mins > 0 ? `${mins} min` : `${elapsed}s`,
+    ...(selectedRpe ? { rpe:selectedRpe } : {}),
+    ...(finishNote ? { note:finishNote } : {}),
     exercises: r.exercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutData[ex.id].series.map(s=>({...s})) })),
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
@@ -8028,6 +8094,9 @@ function renderFormExercises(){
           <div class="field-inline-label">${thirdLabel}</div>
           ${ex.type==='time' ? `<input type="text" inputmode="numeric" maxlength="5" value="${escapeAttribute(thirdValue)}" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center" oninput="handleTimeInputTyping(this)" onblur="commitRoutineTimeField(this, ${i})" onchange="commitRoutineTimeField(this, ${i})">` : `<input type="number" min="0" step="1" value="${thirdValue}" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center" oninput="updateExerciseField(${i}, 'defaultReps', Math.max(0,+this.value||0))">`}
         </div>
+        ${ex.type !== 'time' ? `
+        <div><div class="field-inline-label">Rango mín.</div><input type="number" min="1" step="1" value="${exerciseRepRange(ex).min}" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center" oninput="updateExerciseField(${i}, 'repMin', Math.max(1,+this.value||1))"></div>
+        <div><div class="field-inline-label">Rango máx.</div><input type="number" min="1" step="1" value="${exerciseRepRange(ex).max}" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;text-align:center" oninput="updateExerciseField(${i}, 'repMax', Math.max(1,+this.value||1))"></div>` : ''}
       </div>
       ${weightField}
       <div style="margin-top:10px">
@@ -8041,7 +8110,7 @@ function saveRoutine(){
   const name = document.getElementById('rName').value.trim();
   if(!name){ alert('Pon un nombre'); return; }
   const nowIso = new Date().toISOString();
-  const exercises = formExercises.filter(e=>e.name && e.name.trim()).map(e=>({ id: e.id || uid('e'), name: e.name.trim(), type: e.type || 'weight', group: e.group || '', notes: e.notes || '', defaultSeries: Math.max(1, +e.defaultSeries || 1), defaultReps: e.type === 'time' ? (+(e.defaultDuration || e.defaultReps || 60)) : Math.max(0, +e.defaultReps || 0), defaultWeight: e.type === 'weight' ? Math.max(0, +e.defaultWeight || 0) : 0, defaultDuration: e.type === 'time' ? (+(e.defaultDuration || e.defaultReps || 60)) : 0 }));
+  const exercises = formExercises.filter(e=>e.name && e.name.trim()).map(e=>{ const range=exerciseRepRange(e); return { id: e.id || uid('e'), name: e.name.trim(), type: e.type || 'weight', group: e.group || '', notes: e.notes || '', defaultSeries: Math.max(1, +e.defaultSeries || 1), defaultReps: e.type === 'time' ? (+(e.defaultDuration || e.defaultReps || 60)) : Math.max(0, +e.defaultReps || 0), repMin: e.type === 'time' ? 0 : range.min, repMax: e.type === 'time' ? 0 : range.max, defaultWeight: e.type === 'weight' ? Math.max(0, +e.defaultWeight || 0) : 0, defaultDuration: e.type === 'time' ? (+(e.defaultDuration || e.defaultReps || 60)) : 0 }; });
   if(!exercises.length){ alert('Anade al menos un ejercicio valido.'); return; }
   const icons = ['🏋️','💪','🔥','🦵','🧠','⚡','🥊','🎯'];
   if(editingRoutineId){
@@ -8692,6 +8761,7 @@ function progressSessionCardHtml(log){
       <div class="history-chip muted">${completion}% completado</div>
       <div class="history-chip muted">${log.exercises.length} ejercicios</div>
     </div>
+    ${sessionFeedbackHtml(log)}
     ${healthHtml}
     <div class="progress-ex-grid">
       ${log.exercises.map(ex => {
@@ -9093,14 +9163,34 @@ function healthRecoveryCutoffLabel(){
 function cloudWorkoutPayload(log){
   const startTime = workoutStartIso(log);
   const utcOffsetSeconds = -(new Date(startTime).getTimezoneOffset() * 60);
+  const exerciseSummary = (log.exercises || []).map(exercise=>{
+    const series = Array.isArray(exercise.series) ? exercise.series : [];
+    const completed = series.filter(item=>item.done);
+    const performed = completed.length ? completed : series;
+    return { name:exercise.name || 'Ejercicio', completedSets:completed.length, totalSets:series.length, totalReps:exercise.type === 'time' ? 0 : performed.reduce((sum,item)=>sum+(+item.reps||0),0), topWeightKg:exercise.type === 'weight' ? Math.max(0,...performed.map(item=>+item.weight||0)) : 0, durationSeconds:exercise.type === 'time' ? performed.reduce((sum,item)=>sum+(+(item.duration ?? item.reps)||0),0) : 0 };
+  });
+  const profile = state.settings?.healthProfile || {};
+  const configuredMax = Number(profile.maxHeartRate);
+  const age = Number(profile.age);
+  const maxHeartRate = Number.isFinite(configuredMax) && configuredMax >= 100 ? configuredMax : (Number.isFinite(age) && age >= 12 ? Math.round(208-(0.7*age)) : null);
+  const activityText = `${log.routineName || ''} ${(log.exercises || []).map(ex=>ex.name || '').join(' ')}`.toLowerCase();
+  const activityType = /bicic|ciclismo|cycling|bike/.test(activityText) ? 'BIKING' : 'STRENGTH_TRAINING';
   return {
     localId: log.id,
     name: log.routineName || 'GymLog fuerza',
-    type: 'STRENGTH_TRAINING',
+    type: activityType,
     startTime,
     endTime: log.completedAt || new Date(new Date(startTime).getTime() + ((+log.duration || 0) * 1000)).toISOString(),
     durationSeconds: +log.duration || 0,
-    utcOffset: `${utcOffsetSeconds}s`
+    utcOffset: `${utcOffsetSeconds}s`,
+    rpe:Number.isFinite(+log.rpe) ? +log.rpe : null,
+    note:String(log.note || '').slice(0,240),
+    totalSets:exerciseSummary.reduce((sum,item)=>sum+item.totalSets,0),
+    completedSets:exerciseSummary.reduce((sum,item)=>sum+item.completedSets,0),
+    totalReps:exerciseSummary.reduce((sum,item)=>sum+item.totalReps,0),
+    totalVolumeKg:(log.exercises || []).reduce((sum,exercise)=>sum+(exercise.type === 'weight' ? (exercise.series || []).reduce((volume,item)=>volume+((+item.reps||0)*(+item.weight||0)),0) : 0),0),
+    maxHeartRate,
+    exercises:exerciseSummary
   };
 }
 async function healthFunctionRequest(action, payload = {}){
@@ -9422,6 +9512,8 @@ async function syncWorkoutToHealth(logId, options = {}){
       syncStatus:'synced',
       metricsStatus: result.metricsError ? 'error' : (result.metricsPending ? 'pending' : (result.health?.metrics ? 'ready' : health.metricsStatus)),
       metricsError: result.metricsError || '',
+      googleSummaryUpdated: !!result.googleSummaryUpdated,
+      googleSummaryError: result.googleSummaryError || '',
       lastSyncedAt:new Date().toISOString(), error:''
     };
     save();
@@ -9505,16 +9597,16 @@ async function retryHealthMetrics(){
   if(!gymLogGoogleConnected) return alert('Primero conecta Google Health.');
   const logs = state.workoutLog.filter(log => healthForLog(log).remoteDataPointId && healthRecoveryEligible(log)).slice().reverse().slice(0, 30);
   if(!logs.length) return showToast('No hay sesiones sincronizadas');
-  const finishBusy = setHealthBusy('retryHealthMetricsButton', 'Actualizando...', `Actualizando metricas 0/${logs.length}`);
+  const finishBusy = setHealthBusy('retryHealthMetricsButton', 'Actualizando...', `Actualizando detalles en Google 0/${logs.length}`);
   let updated = 0;
   try{
     for(let i = 0; i < logs.length; i++){
-      setHealthActivity(`Actualizando metricas ${i + 1}/${logs.length}: ${logs[i].routineName || 'sesion'}`, true);
+      setHealthActivity(`Actualizando Google ${i + 1}/${logs.length}: ${logs[i].routineName || 'sesion'}`, true);
       const ok = await syncWorkoutToHealth(logs[i].id, { silent:true });
       if(ok) updated++;
     }
-    setHealthActivity(`Metricas actualizadas: ${updated}/${logs.length} sesiones revisadas`, false);
-    showToast('Metricas actualizadas');
+    setHealthActivity(`Detalles actualizados: ${updated}/${logs.length} sesiones revisadas`, false);
+    showToast('Detalles enviados a Google');
   }finally{
     finishBusy();
     renderHealthSettings();
@@ -9700,6 +9792,8 @@ function healthSessionHtml(log){
   const metrics = health.metrics || {};
   const diagnostic = healthMetricsDiagnostic(log, health);
   const pills = [`<span class="health-pill ${statusClass}">${escapeHtml(statusText)}</span>`];
+  if(health.googleSummaryUpdated) pills.push('<span class="health-pill success">Detalles visibles en Google</span>');
+  if(health.googleSummaryError) pills.push(`<span class="health-pill error">Google no aceptó el resumen: ${escapeHtml(health.googleSummaryError)}</span>`);
   if(Number.isFinite(+metrics.averageHeartRate)) pills.push(`<span class="health-pill">FC media ${Math.round(+metrics.averageHeartRate)} bpm</span>`);
   if(Number.isFinite(+metrics.maxHeartRate)) pills.push(`<span class="health-pill">FC max ${Math.round(+metrics.maxHeartRate)} bpm</span>`);
   if(Number.isFinite(+metrics.activeZoneMinutes)) pills.push(`<span class="health-pill">${Math.round(+metrics.activeZoneMinutes)} min zona activa</span>`);
