@@ -31,6 +31,21 @@ type WorkoutSession = {
   endTime: string;
   durationSeconds: number;
   utcOffset?: string;
+  rpe?: number | null;
+  note?: string;
+  totalSets?: number;
+  completedSets?: number;
+  totalReps?: number;
+  totalVolumeKg?: number;
+  maxHeartRate?: number | null;
+  exercises?: Array<{
+    name: string;
+    completedSets?: number;
+    totalSets?: number;
+    totalReps?: number;
+    topWeightKg?: number;
+    durationSeconds?: number;
+  }>;
 };
 type AppUser = {
   id: string;
@@ -56,6 +71,74 @@ function stableDataPointName(session: WorkoutSession): string {
 }
 function toSeconds(value?: number): string {
   return `${Math.max(0, Math.round(value || 0))}s`;
+}
+function normalizeExerciseType(value?: string): string {
+  const type = String(value || "").toUpperCase();
+  return ["BIKING", "STRENGTH_TRAINING", "BODY_WEIGHT", "CALISTHENICS"].includes(type) ? type : "STRENGTH_TRAINING";
+}
+function cleanText(value: unknown, limit = 500): string {
+  const flattened = String(value || "")
+    .replaceAll(String.fromCharCode(10), " ")
+    .replaceAll(String.fromCharCode(13), " ")
+    .replaceAll(String.fromCharCode(9), " ");
+  return flattened.split(" ").filter(Boolean).join(" ").trim().slice(0, limit);
+}
+function exerciseNotes(session: WorkoutSession, metrics?: Record<string, unknown>): string {
+  const lines = ["Registrado desde GymLog."];
+  if (session.completedSets || session.totalSets) lines.push(`Series: ${Math.max(0, Number(session.completedSets) || 0)}/${Math.max(0, Number(session.totalSets) || 0)}.`);
+  if (session.totalReps) lines.push(`Repeticiones: ${Math.max(0, Math.round(session.totalReps))}.`);
+  if (session.totalVolumeKg) lines.push(`Volumen: ${Math.round(session.totalVolumeKg)} kg.`);
+  if (Number.isFinite(Number(session.rpe))) lines.push(`Esfuerzo percibido (RPE): ${Math.min(10, Math.max(1, Math.round(Number(session.rpe))))}/10.`);
+  if (Number.isFinite(Number(metrics?.maxHeartRate)) && Number(metrics?.maxHeartRate) >= 40) lines.push(`FC maxima: ${Math.round(Number(metrics?.maxHeartRate))} bpm.`);
+  const exerciseNames = (session.exercises || []).map((item) => cleanText(item.name, 60)).filter(Boolean);
+  if (exerciseNames.length) lines.push(`Ejercicios: ${exerciseNames.slice(0, 12).join(", ")}.`);
+  if (cleanText(session.note, 240)) lines.push(`Nota: ${cleanText(session.note, 240)}`);
+  return lines.join(String.fromCharCode(10)).slice(0, 1000);
+}
+function sampleTime(sample: { time?: string }): number {
+  const value = Date.parse(sample.time || "");
+  return Number.isFinite(value) ? value : 0;
+}
+function computedHeartRateZones(samples: Array<{ bpm: number; time: string }>, maxHeartRate?: number | null): Record<string, string> | null {
+  const max = Number(maxHeartRate);
+  const timed = samples.filter((sample) => sampleTime(sample) > 0).sort((a, b) => sampleTime(a) - sampleTime(b));
+  if (!Number.isFinite(max) || max < 100 || timed.length < 2) return null;
+  const totals = { light: 0, moderate: 0, vigorous: 0, peak: 0 };
+  for (let index = 0; index < timed.length - 1; index += 1) {
+    const seconds = Math.min(60, Math.max(0, (sampleTime(timed[index + 1]) - sampleTime(timed[index])) / 1000));
+    const ratio = timed[index].bpm / max;
+    if (ratio >= 0.9) totals.peak += seconds;
+    else if (ratio >= 0.8) totals.vigorous += seconds;
+    else if (ratio >= 0.7) totals.moderate += seconds;
+    else if (ratio >= 0.6) totals.light += seconds;
+  }
+  if (!Object.values(totals).some((value) => value > 0)) return null;
+  return { lightTime: toSeconds(totals.light), moderateTime: toSeconds(totals.moderate), vigorousTime: toSeconds(totals.vigorous), peakTime: toSeconds(totals.peak) };
+}
+function exercisePointBody(session: WorkoutSession, metrics: Record<string, unknown> = {}, existingSummary: Record<string, unknown> = {}) {
+  const summary: Record<string, unknown> = { ...existingSummary };
+  const average = Number(metrics.averageHeartRate);
+  const calories = Number(metrics.calories);
+  const activeZoneMinutes = Number(metrics.activeZoneMinutes);
+  if (Number.isFinite(average) && average >= 40) summary.averageHeartRateBeatsPerMinute = String(Math.round(average));
+  if (Number.isFinite(calories) && calories > 0) summary.caloriesKcal = calories;
+  if (Number.isFinite(activeZoneMinutes) && activeZoneMinutes > 0) summary.activeZoneMinutes = String(Math.round(activeZoneMinutes));
+  if (metrics.heartRateZoneDurations) summary.heartRateZoneDurations = metrics.heartRateZoneDurations;
+  return {
+    name: stableDataPointName(session),
+    exercise: {
+      interval: { startTime: session.startTime, startUtcOffset: session.utcOffset || "0s", endTime: session.endTime, endUtcOffset: session.utcOffset || "0s" },
+      exerciseType: normalizeExerciseType(session.type),
+      displayName: `GymLog - ${cleanText(session.name, 90) || "Entrenamiento"}`,
+      activeDuration: toSeconds(session.durationSeconds),
+      metricsSummary: summary,
+      notes: exerciseNotes(session, metrics),
+      exerciseEvents: [
+        { eventTime: session.startTime, eventUtcOffset: session.utcOffset || "0s", exerciseEventType: "START" },
+        { eventTime: session.endTime, eventUtcOffset: session.utcOffset || "0s", exerciseEventType: "STOP" },
+      ],
+    },
+  };
 }
 
 function dbQuery(params: Record<string, string>): string {
@@ -303,26 +386,7 @@ async function createExercise(user: AppUser, session: WorkoutSession) {
   if (storedRows?.[0]?.google_data_point_name) return storedRows[0].google_data_point_name;
   const { token } = await healthAccessTokenFor(user.id);
   const pointName = stableDataPointName(session);
-  const exercisePoint = {
-    name: pointName,
-    exercise: {
-      interval: {
-        startTime: session.startTime,
-        startUtcOffset: session.utcOffset || "0s",
-        endTime: session.endTime,
-        endUtcOffset: session.utcOffset || "0s",
-      },
-      exerciseType: "STRENGTH_TRAINING",
-      displayName: `GymLog - ${session.name}`,
-      activeDuration: toSeconds(session.durationSeconds),
-      metricsSummary: {},
-      notes: "Registrado automaticamente desde GymLog.",
-      exerciseEvents: [
-        { eventTime: session.startTime, eventUtcOffset: session.utcOffset || "0s", exerciseEventType: "START" },
-        { eventTime: session.endTime, eventUtcOffset: session.utcOffset || "0s", exerciseEventType: "STOP" },
-      ],
-    },
-  };
+  const exercisePoint = exercisePointBody(session);
   try {
     await googleRequest(token, `${GOOGLE_HEALTH_BASE}/exercise/dataPoints`, { method: "POST", body: JSON.stringify(exercisePoint) });
   } catch (error) {
@@ -364,20 +428,33 @@ async function metricsForSession(user: AppUser, session: WorkoutSession, pointNa
     const heartRate = point.heartRate as Record<string, unknown> | undefined;
     return heartRate ? {
       bpm: Number(heartRate.beatsPerMinute || 0),
-      time: (heartRate.sampleTime as Record<string, unknown> | undefined)?.time || "",
+      time: (heartRate.sampleTime as Record<string, unknown> | undefined)?.physicalTime ||
+        (heartRate.sampleTime as Record<string, unknown> | undefined)?.time || "",
     } : null;
   }).filter((point) => point && point.bpm) as Array<{ bpm: number; time: string }>;
   const values = heartRateSamples.map((point) => point.bpm);
   const summary = (exercise.metricsSummary || {}) as Record<string, unknown>;
+  const calculatedZones = computedHeartRateZones(heartRateSamples, session.maxHeartRate);
   const metrics = {
     averageHeartRate: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : Number(summary.averageHeartRateBeatsPerMinute || 0) || null,
     maxHeartRate: values.length ? Math.max(...values) : null,
     calories: Number(summary.caloriesKcal || 0) || null,
     activeZoneMinutes: Number(summary.activeZoneMinutes || 0) || null,
-    heartRateZoneDurations: summary.heartRateZoneDurations || null,
+    heartRateZoneDurations: summary.heartRateZoneDurations || calculatedZones,
     heartRateSamples,
   };
-  return { health: { metrics }, metricsPending: !heartRateSamples.length, metricsError };
+  let googleSummaryUpdated = false;
+  let googleSummaryError = "";
+  try {
+    await googleRequest(token, `https://health.googleapis.com/v4/${pointName}`, {
+      method: "PATCH",
+      body: JSON.stringify(exercisePointBody(session, metrics, summary)),
+    });
+    googleSummaryUpdated = true;
+  } catch (error) {
+    googleSummaryError = error instanceof Error ? error.message : "No se pudo completar el resumen en Google Health.";
+  }
+  return { health: { metrics }, metricsPending: !heartRateSamples.length, metricsError, googleSummaryUpdated, googleSummaryError };
 }
 
 async function saveDriveBackup(user: AppUser, backupState: unknown, options: Record<string, unknown> = {}) {
