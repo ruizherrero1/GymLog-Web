@@ -199,9 +199,11 @@
           showToast('Cambios locales recuperados y sincronizados');
           return;
         }
-        state = { ...state, ...data.data };
+        const shouldSaveNeckRoutine = !Array.isArray(data.data.routines) || !data.data.routines.some(routine => normalizeExerciseText(routine?.name || '') === 'cuello');
+        state = normalizeState({ ...state, ...data.data });
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         refreshCloudUi();
+        if(shouldSaveNeckRoutine) await saveUserCloudState({ immediate:true, silent:true });
         setCloudStatus('ok', `Nube ✓ r${cloudRevision}`);
         showToast('✓ Datos cargados desde la nube');
       }else{

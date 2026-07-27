@@ -49,6 +49,10 @@ check(html.includes('https://www.google.com/search?q=${query}'), 'Google debe re
 check(html.includes('https://www.youtube.com/results?search_query=${query}'), 'YouTube debe recibir el nombre exacto del ejercicio.');
 check(occurrences(html, 'target="_blank" rel="noopener noreferrer"') >= 2, 'Las busquedas deben abrirse de forma aislada y segura.');
 check(html.includes('id="gymHealthMoreOptions"'), 'Las opciones secundarias de Health deben estar agrupadas en un panel compacto.');
+check(!html.includes('function exerciseEquipmentIcon(name)'), 'Los iconos de equipamiento deben permanecer retirados.');
+check(!html.includes('finishRpe'), 'El cierre del entreno no debe pedir RPE.');
+check(html.includes("name:'Cuello'"), 'Debe existir una rutina independiente de cuello.');
+check(html.includes("id:'neck-left-band'"), 'La rutina Cuello debe incluir trabajo en las cuatro direcciones.');
 check(html.includes('function healthRecoveryEligible(log)'), 'La recuperacion de FC debe respetar una fecha de inicio.');
 check(occurrences(html, 'healthRecoveryEligible(log)') > 1, 'El limite de FC debe aplicarse a contadores y acciones.');
 check(reliability.includes('remotePlanVersion !== localPlanVersion'), 'La version del plan debe impedir que reaparezcan rutinas antiguas.');
@@ -80,8 +84,6 @@ check(reliability.includes("routine.timerDurationSeconds = timerConfig.duration"
 check(reliability.includes("activeExercises.parentNode.insertBefore(panel,activeExercises)"), 'El temporizador debe quedar visible antes de los ejercicios.');
 check(html.includes('function exerciseProgressionSuggestion(exercise)'), 'El entreno debe sugerir progresion sin aplicarla automaticamente.');
 check(html.includes("title:'Prueba +2,5 kg'"), 'La progresion con peso debe proponer un incremento conservador.');
-check(html.includes("data-selected=\"false\""), 'El RPE de fin de sesion debe ser opcional.');
-check(html.includes('...(selectedRpe ? { rpe:selectedRpe } : {})'), 'La sesion debe guardar RPE solo cuando el usuario lo elige.');
 check(html.includes('...(finishNote ? { note:finishNote } : {})'), 'La nota rapida debe guardarse solo cuando contiene texto.');
 check(html.includes("type: activityType"), 'Google Health debe distinguir la bicicleta de la fuerza.');
 check(html.includes('googleSummaryUpdated: !!result.googleSummaryUpdated'), 'La app debe conservar el resultado del resumen enviado a Google.');
