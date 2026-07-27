@@ -837,6 +837,7 @@
 .preview-exercise-search{display:grid;grid-template-columns:repeat(2,auto);gap:6px;}
 .preview-search-btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 9px;border-radius:11px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.055);color:var(--text);font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap;touch-action:manipulation;}
 .preview-search-btn.google{color:#93c5fd}.preview-search-btn.youtube{color:#fca5a5}.preview-search-btn:active{transform:scale(.96);background:rgba(255,255,255,.10);}
+.exercise-name-line{display:flex;align-items:center;gap:8px;min-width:0}.exercise-equipment-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:0 0 30px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid var(--border);font-size:17px}.active-exercise-search{display:flex;align-items:center;gap:5px}.active-search-btn{display:inline-flex;align-items:center;justify-content:center;width:31px;height:31px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.055);font-size:13px;font-weight:900;text-decoration:none}.active-search-btn.google{color:#93c5fd}.active-search-btn.youtube{color:#fca5a5}
 @media (max-width:480px){
   .preview-shell{padding:16px;border-radius:22px;}
   .preview-header-pro{gap:14px;}
@@ -6235,6 +6236,10 @@ function searchExerciseSuggestions(query){
     .sort((a,b)=>b.score-a.score || a.nombre.localeCompare(b.nombre,'es'))
     .slice(0,50);
 }
+const SAFE_NECK_EXERCISES=[{nombre:'Isométrico cervical frontal con banda',grupo:'Cuello'},{nombre:'Isométrico cervical posterior con banda',grupo:'Cuello'},{nombre:'Isométrico cervical lateral con banda',grupo:'Cuello'},{nombre:'Retracción cervical (chin tuck)',grupo:'Cuello'}];
+SAFE_NECK_EXERCISES.forEach(exercise=>{if(!EXERCISE_LIBRARY.some(item=>normalizeExerciseText(item.nombre)===normalizeExerciseText(exercise.nombre)))EXERCISE_LIBRARY.push(exercise);});
+function exerciseEquipmentIcon(name){const n=normalizeExerciseText(name||'');if(/cuello|cervical|chin tuck/.test(n))return{icon:'🧣',label:'Cuello'};if(/dominada|pull.?up|chin.?up|colgado/.test(n))return{icon:'🚪',label:'Barra de dominadas'};if(/mancuerna|dumbbell/.test(n))return{icon:'🏋️',label:'Mancuernas'};if(/banco|bench|hip thrust/.test(n))return{icon:'🛋️',label:'Banco'};if(/barra|barbell|press militar|peso muerto|sentadilla/.test(n))return{icon:'➖',label:'Barra'};if(/banda|band|pull.?apart|pallof/.test(n))return{icon:'〰️',label:'Banda elástica'};if(/polea|cable|jalon/.test(n))return{icon:'🧵',label:'Polea'};if(/maquina|smith|prensa/.test(n))return{icon:'⚙️',label:'Máquina'};return{icon:'💪',label:'Peso corporal'};}
+function exerciseSearchLinks(name){const safe=String(name||'Ejercicio'),query=encodeURIComponent(safe);return `<div class="active-exercise-search"><a class="active-search-btn google" data-search-provider="google" href="https://www.google.com/search?q=${query}" target="_blank" rel="noopener noreferrer" aria-label="Buscar ${escapeAttribute(safe)} en Google" onclick="event.stopPropagation()">G</a><a class="active-search-btn youtube" data-search-provider="youtube" href="https://www.youtube.com/results?search_query=${query}" target="_blank" rel="noopener noreferrer" aria-label="Buscar ${escapeAttribute(safe)} en YouTube" onclick="event.stopPropagation()">▶</a></div>`;}
 function updateExerciseName(i, value){
   formExercises[i].name = value;
   const found = EXERCISE_LIBRARY.find(x => normalizeExerciseText(x.nombre) === normalizeExerciseText(value));
@@ -7817,13 +7822,14 @@ function renderActiveExercises(){
           <div class="exercise-header-active">
             <div class="ex-check ${allDone ? 'done' : ''}" onclick="toggleAllSeries('${ex.id}')">${allDone ? '✓' : ''}</div>
             <div class="exercise-header-main">
-              <div class="ex-name">${escapeHtml(ex.name)}</div>
+              ${(() => { const equipment=exerciseEquipmentIcon(ex.name); return `<div class="exercise-name-line"><span class="exercise-equipment-icon" title="${escapeAttribute(equipment.label)}">${equipment.icon}</span><div class="ex-name">${escapeHtml(ex.name)}</div></div>`; })()}
               <div class="exercise-submeta">
                 <span>${isTime ? 'Por tiempo' : 'Por repeticiones'}</span>
                 <span>${currentSetLabel}</span>
               </div>
             </div>
             <div class="exercise-head-actions">
+              ${exerciseSearchLinks(ex.name)}
               ${hasPerformance ? `<button class="performance-toggle-btn ${showPerformance ? 'active' : ''}" title="Ver ultima vez" onclick="togglePerformancePanel('${ex.id}')">↻</button>` : ''}
               <div class="ex-progress">${done}/${total}</div>
               <button class="exercise-expand-btn" onclick="toggleExercisePanel('${ex.id}')">${isExpanded ? '-' : '+'}</button>
@@ -9625,18 +9631,17 @@ async function recoverMissingFitbitData(){
     .filter(needsFitbitRecovery)
     .slice()
     .sort((a,b) => String(b.completedAt || b.date || '').localeCompare(String(a.completedAt || a.date || '')))
-    .slice(0, 80);
+    .slice(0, 12);
   if(!logs.length) return showToast('No hay sesiones con FC pendiente');
-  if(!confirm(`Voy a revisar ${logs.length} sesiones sincronizadas que aun no tienen FC de Fitbit. Puede tardar un poco.\n\nContinuar?`)) return;
   const finishBusy = setHealthBusy('recoverFitbitMetricsButton', 'Recuperando FC...', `Recuperando FC 0/${logs.length}`);
   let reviewed = 0;
   let recovered = 0;
   try{
-    for(let i = 0; i < logs.length; i++){
-      setHealthActivity(`Recuperando FC ${i + 1}/${logs.length}: ${logs[i].routineName || 'sesion'}`, true);
-      const ok = await syncWorkoutToHealth(logs[i].id, { silent:true });
-      if(ok) reviewed++;
-      if(ok && hasFitbitData(logs[i])) recovered++;
+    for(let offset = 0; offset < logs.length; offset += 3){
+      const batch = logs.slice(offset, offset + 3);
+      setHealthActivity(`Recuperando FC ${offset + 1}-${Math.min(offset + batch.length, logs.length)}/${logs.length}`, true);
+      const results = await Promise.all(batch.map(log => syncWorkoutToHealth(log.id, { silent:true })));
+      results.forEach((ok,index) => { if(ok) reviewed++; if(ok && hasFitbitData(batch[index])) recovered++; });
     }
     setHealthActivity(`FC revisada: ${reviewed}/${logs.length}. Recuperadas con lecturas: ${recovered}`, false);
     showToast(`FC recuperada en ${recovered} sesiones`);
