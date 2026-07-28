@@ -70,7 +70,7 @@
     }
     element.className = `gym-cloud-status ${kind} visible`;
     element.textContent = text;
-    const hideAfter = kind === 'ok' ? 2200 : (kind === 'pending' ? 0 : 7000);
+    const hideAfter = kind === 'ok' ? 2200 : (kind === 'pending' ? 2500 : 7000);
     if(hideAfter){
       cloudStatusHideTimer = setTimeout(() => {
         element.classList.remove('visible');
