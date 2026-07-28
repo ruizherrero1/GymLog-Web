@@ -923,11 +923,12 @@
     return { index, name:`Z${index + 1}`, intensity };
   }
 
-  function heartValues(log){
+  function heartPoints(log){
     return (healthForLog(log).metrics?.heartRateSamples || [])
-      .map(sample => Number(sample.bpm ?? sample.value ?? sample.heartRate))
-      .filter(value => Number.isFinite(value) && value >= 40 && value <= 240);
+      .map(sample => ({ value:Number(sample.bpm ?? sample.value ?? sample.heartRate), time:String(sample.time || '') }))
+      .filter(point => Number.isFinite(point.value) && point.value >= 40 && point.value <= 240);
   }
+  function heartValues(log){ return heartPoints(log).map(point => point.value); }
 
   function zoneDurations(log){
     const values = heartValues(log);
@@ -965,66 +966,120 @@
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'heartRateDetailTitle');
-    overlay.innerHTML = `<div class="gym-hr-dialog"><div class="gym-hr-head"><div><strong id="heartRateDetailTitle">Frecuencia cardiaca</strong><div id="heartRateDetailSubtitle" class="gym-hr-subtitle"></div></div><button type="button" class="ghost-btn" id="heartRateDetailClose">Cerrar</button></div><div class="gym-hr-canvas-wrap"><canvas id="heartRateDetailCanvas" aria-label="Gráfica detallada de frecuencia cardiaca"></canvas><div id="heartRateTooltip" class="gym-hr-tooltip"></div></div><div id="heartRateDetailStats" class="gym-hr-stats"></div><div id="heartRateDetailQuality" class="progress-note"></div></div>`;
+    overlay.innerHTML = `<div class="gym-hr-dialog">
+      <div class="gym-hr-head"><div><strong id="heartRateDetailTitle">Frecuencia cardiaca</strong><div id="heartRateDetailSubtitle" class="gym-hr-subtitle"></div></div><button type="button" class="ghost-btn" id="heartRateDetailClose">Cerrar</button></div>
+      <div class="gym-hr-guide"><span>Toca o arrastra sobre la gráfica para explorar cada lectura.</span><button type="button" id="heartRateSelectionReset">Limpiar selección</button></div>
+      <div class="gym-hr-canvas-wrap"><canvas id="heartRateDetailCanvas" tabindex="0" aria-label="Gráfica interactiva de frecuencia cardiaca"></canvas><div id="heartRateTooltip" class="gym-hr-tooltip"></div></div>
+      <div id="heartRateSelection" class="gym-hr-selection" aria-live="polite">Toca un punto para ver sus detalles.</div>
+      <div id="heartRateZoneLegend" class="gym-hr-zone-legend"></div>
+      <div id="heartRateDetailStats" class="gym-hr-stats"></div><div id="heartRateDetailQuality" class="progress-note"></div>
+    </div>`;
     overlay.addEventListener('click', event => { if(event.target === overlay) closeHeartRateDetails(); });
     document.body.appendChild(overlay);
     document.getElementById('heartRateDetailClose').addEventListener('click', closeHeartRateDetails);
+    document.getElementById('heartRateSelectionReset').addEventListener('click',()=>{
+      const canvas=document.getElementById('heartRateDetailCanvas');
+      if(canvas){ delete canvas.dataset.selectedIndex; delete canvas.dataset.pinned; }
+      document.getElementById('heartRateTooltip')?.classList.remove('show');
+      const selection=document.getElementById('heartRateSelection');
+      if(selection) selection.textContent='Toca un punto para ver sus detalles.';
+      if(window.__gymHeartRateDetailLog) drawDetailedHeartRate(window.__gymHeartRateDetailLog);
+    });
   }
 
   function drawDetailedHeartRate(log){
-    const values = heartValues(log);
-    const canvas = document.getElementById('heartRateDetailCanvas');
+    const pointsData=heartPoints(log), values=pointsData.map(point=>point.value);
+    const canvas=document.getElementById('heartRateDetailCanvas');
     if(!canvas || !values.length) return;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(300, Math.round(rect.width || 640));
-    const height = Math.max(260, Math.round(rect.height || 320));
-    canvas.width = width * dpr; canvas.height = height * dpr;
-    const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
-    const left=44,right=12,top=18,bottom=38, chartW=width-left-right, chartH=height-top-bottom;
-    const min=Math.max(40,Math.floor(Math.min(...values)/10)*10-10);
-    const max=Math.min(240,Math.ceil(Math.max(...values)/10)*10+10);
-    const range=max-min || 1;
-    const styles=getComputedStyle(document.documentElement);
-    const muted=styles.getPropertyValue('--muted').trim()||'#9ca3af';
-    const border=styles.getPropertyValue('--border').trim()||'rgba(255,255,255,.15)';
+    const rect=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    const width=Math.max(300,Math.round(rect.width||640)), height=Math.max(260,Math.round(rect.height||320));
+    canvas.width=width*dpr; canvas.height=height*dpr;
+    const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    const left=48,right=18,top=20,bottom=42,chartW=width-left-right,chartH=height-top-bottom;
+    const min=Math.max(40,Math.floor(Math.min(...values)/10)*10-10), max=Math.min(240,Math.ceil(Math.max(...values)/10)*10+10), range=max-min||1;
+    const styles=getComputedStyle(document.documentElement), muted=styles.getPropertyValue('--muted').trim()||'#9ca3af', border=styles.getPropertyValue('--border').trim()||'rgba(255,255,255,.15)', lineColor=styles.getPropertyValue('--done').trim()||'#34d399';
     const colors=['#60a5fa','#34d399','#facc15','#fb923c','#ef4444'];
-    ctx.clearRect(0,0,width,height); ctx.font='12px DM Sans, sans-serif';
-    for(let i=0;i<=4;i++){
-      const value=min+(range*i/4), y=top+chartH-(chartH*i/4);
-      ctx.strokeStyle=border; ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(width-right,y); ctx.stroke();
-      ctx.fillStyle=muted; ctx.fillText(String(Math.round(value)),4,y+4);
-    }
-    const points=downsample(values, Math.min(800, Math.max(250, width*1.5)));
-    const x=index=>left+(index/(values.length-1||1))*chartW;
-    const y=value=>top+chartH-((value-min)/range)*chartH;
-    ctx.lineWidth=2; ctx.beginPath();
-    points.forEach((point,index)=>{ const px=x(point.index),py=y(point.value); index?ctx.lineTo(px,py):ctx.moveTo(px,py); });
-    ctx.strokeStyle=styles.getPropertyValue('--done').trim()||'#34d399'; ctx.stroke();
-    points.forEach(point=>{ const zone=zoneInfo(point.value); if(!zone) return; ctx.fillStyle=colors[zone.index]; ctx.fillRect(x(point.index)-1,y(point.value)-1,2,2); });
-    ctx.fillStyle=muted; ctx.textAlign='left'; ctx.fillText('Inicio',left,height-10); ctx.textAlign='right'; ctx.fillText(`${Math.round((Number(log.duration)||0)/60)} min`,width-right,height-10); ctx.textAlign='left';
-
-    const tooltip=document.getElementById('heartRateTooltip');
-    const showPoint=clientX=>{
-      const bounds=canvas.getBoundingClientRect();
-      const px=Math.max(0,Math.min(bounds.width,clientX-bounds.left));
-      const index=Math.max(0,Math.min(values.length-1,Math.round(((px-left)/(chartW||1))*values.length)));
-      const minute=((Number(log.duration)||0)*(index/(values.length-1||1))/60);
-      tooltip.textContent=`${values[index]} bpm · min ${minute.toFixed(1)}${zoneInfo(values[index]) ? ` · ${zoneInfo(values[index]).name}` : ''}`;
-      tooltip.style.display='block';
+    const x=index=>left+(index/(values.length-1||1))*chartW, y=value=>top+chartH-((value-min)/range)*chartH;
+    const chartPoints=downsample(values,Math.min(900,Math.max(280,width*1.8)));
+    const selectedIndex=canvas.dataset.selectedIndex === undefined ? -1 : Math.max(0,Math.min(values.length-1,Number(canvas.dataset.selectedIndex)||0));
+    const tooltip=document.getElementById('heartRateTooltip'), selection=document.getElementById('heartRateSelection');
+    const duration=Math.max(0,Number(log.duration)||0), startMs=Date.parse(log.startedAt||'');
+    const detailsFor=index=>{
+      const source=pointsData[index]||{}, parsed=Date.parse(source.time||'');
+      const minute=Number.isFinite(parsed)&&Number.isFinite(startMs) ? Math.max(0,(parsed-startMs)/60000) : (duration*(index/(values.length-1||1))/60);
+      const clock=Number.isFinite(parsed) ? new Date(parsed).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : '';
+      const zone=zoneInfo(values[index]);
+      return { minute, clock, zone };
     };
-    canvas.onpointermove=event=>showPoint(event.clientX);
-    canvas.onpointerleave=()=>{tooltip.style.display='none';};
+    const paint=()=>{
+      ctx.clearRect(0,0,width,height);
+      if(zoneInfo(values[0])){
+        ctx.save(); ctx.globalAlpha=.065;
+        for(let row=0;row<chartH;row+=2){
+          const bpm=max-(row/chartH)*range, zone=zoneInfo(bpm);
+          ctx.fillStyle=colors[zone?.index||0]; ctx.fillRect(left,top+row,chartW,2);
+        }
+        ctx.restore();
+      }
+      ctx.font='11px DM Sans, sans-serif'; ctx.setLineDash([3,5]);
+      for(let i=0;i<=4;i++){
+        const value=min+(range*i/4), py=top+chartH-(chartH*i/4);
+        ctx.strokeStyle=border; ctx.beginPath(); ctx.moveTo(left,py); ctx.lineTo(width-right,py); ctx.stroke();
+        ctx.fillStyle=muted; ctx.textAlign='right'; ctx.fillText(String(Math.round(value)),left-8,py+4);
+      }
+      ctx.setLineDash([]);
+      const area=ctx.createLinearGradient(0,top,0,top+chartH); area.addColorStop(0,'rgba(52,211,153,.28)'); area.addColorStop(1,'rgba(52,211,153,.01)');
+      ctx.beginPath(); chartPoints.forEach((point,index)=>{ const px=x(point.index),py=y(point.value); index?ctx.lineTo(px,py):ctx.moveTo(px,py); }); ctx.lineTo(x(values.length-1),top+chartH); ctx.lineTo(x(0),top+chartH); ctx.closePath(); ctx.fillStyle=area; ctx.fill();
+      ctx.beginPath(); chartPoints.forEach((point,index)=>{ const px=x(point.index),py=y(point.value); index?ctx.lineTo(px,py):ctx.moveTo(px,py); }); ctx.strokeStyle=lineColor; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.shadowColor='rgba(52,211,153,.30)'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+      chartPoints.forEach(point=>{ const zone=zoneInfo(point.value); if(!zone) return; ctx.fillStyle=colors[zone.index]; ctx.beginPath(); ctx.arc(x(point.index),y(point.value),1.45,0,Math.PI*2); ctx.fill(); });
+      ctx.fillStyle=muted; ctx.textAlign='center';
+      for(let i=0;i<=4;i++){ const ratio=i/4, mins=(duration*ratio/60); ctx.fillText(i===0?'Inicio':`${Math.round(mins)} min`,left+chartW*ratio,height-12); }
+      if(selectedIndex>=0){
+        const px=x(selectedIndex),py=y(values[selectedIndex]),zone=zoneInfo(values[selectedIndex]);
+        ctx.strokeStyle=colors[zone?.index||0]; ctx.lineWidth=1.5; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(px,top); ctx.lineTo(px,top+chartH); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle=colors[zone?.index||0]; ctx.beginPath(); ctx.arc(px,py,8,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill();
+      }
+    };
+    const showSelection=(index,pinned)=>{
+      const safe=Math.max(0,Math.min(values.length-1,index)); canvas.dataset.selectedIndex=String(safe); canvas.dataset.pinned=String(!!pinned);
+      const detail=detailsFor(safe), zoneText=detail.zone?.name||'Sin zona', clockText=detail.clock?` · ${detail.clock}`:'';
+      selection.innerHTML=`<strong>${values[safe]} bpm</strong><span>Min ${detail.minute.toFixed(1)}${clockText} · ${zoneText} · lectura ${safe+1}/${values.length}</span>`;
+      const px=x(safe),py=y(values[safe]); tooltip.innerHTML=`<strong>${values[safe]} bpm</strong><span>${detail.clock||`min ${detail.minute.toFixed(1)}`} · ${zoneText}</span>`; tooltip.style.left=`${Math.max(58,Math.min(width-58,px))}px`; tooltip.style.top=`${Math.max(6,py-56)}px`; tooltip.classList.add('show');
+      canvas.setAttribute('aria-label',`${values[safe]} pulsaciones por minuto, ${zoneText}, minuto ${detail.minute.toFixed(1)}`); paint();
+    };
+    const indexFromEvent=event=>{
+      const bounds=canvas.getBoundingClientRect(), cssLeft=(left/width)*bounds.width, cssChartW=(chartW/width)*bounds.width;
+      const local=Math.max(0,Math.min(cssChartW,event.clientX-bounds.left-cssLeft));
+      return Math.round((local/(cssChartW||1))*(values.length-1));
+    };
+    paint();
+    canvas.onpointerdown=event=>{ event.preventDefault(); canvas.setPointerCapture?.(event.pointerId); showSelection(indexFromEvent(event),true); };
+    canvas.onpointermove=event=>{ if(canvas.dataset.pinned==='true'&&!event.buttons) return; if(event.pointerType==='mouse'||event.buttons) showSelection(indexFromEvent(event),event.buttons>0); };
+    canvas.onpointerup=event=>{ canvas.releasePointerCapture?.(event.pointerId); if(canvas.dataset.selectedIndex!==undefined) canvas.dataset.pinned='true'; };
+    canvas.onpointerleave=()=>{ if(canvas.dataset.pinned==='true') return; delete canvas.dataset.selectedIndex; tooltip.classList.remove('show'); selection.textContent='Toca un punto para ver sus detalles.'; paint(); };
+    canvas.onkeydown=event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; event.preventDefault();
+      const storedIndex=Number(canvas.dataset.selectedIndex);
+      const current=Number.isFinite(storedIndex)?Math.max(0,Math.min(values.length-1,storedIndex)):0, step=Math.max(1,Math.round(values.length/100));
+      const next=event.key==='Home'?0:event.key==='End'?values.length-1:current+(event.key==='ArrowRight'?step:-step); showSelection(next,true);
+    };
   }
-
   window.openHeartRateDetails = function(logId){
     const log = state.workoutLog.find(item => item.id === logId);
     if(!log || !heartValues(log).length) return showToast('Esta sesión aún no tiene lecturas de pulso');
     ensureHeartRateModal();
-    const values=heartValues(log), zones=zoneDurations(log);
+    const values=heartValues(log), zones=zoneDurations(log), zoneColors=['#60a5fa','#34d399','#facc15','#fb923c','#ef4444'];
+    window.__gymHeartRateDetailLog=log;
+    const canvas=document.getElementById('heartRateDetailCanvas');
+    delete canvas.dataset.selectedIndex; delete canvas.dataset.pinned;
+    document.getElementById('heartRateTooltip').classList.remove('show');
+    document.getElementById('heartRateSelection').textContent='Toca un punto para ver sus detalles.';
     document.getElementById('heartRateDetailTitle').textContent=log.routineName || 'Frecuencia cardiaca';
-    document.getElementById('heartRateDetailSubtitle').textContent=`${log.date || ''} · ${values.length} lecturas`;
-    document.getElementById('heartRateDetailStats').innerHTML=`<span>Media <strong>${Math.round(values.reduce((a,b)=>a+b,0)/values.length)} bpm</strong></span><span>Máxima <strong>${Math.max(...values)} bpm</strong></span>${zones ? zones.map((seconds,index)=>`<span>Z${index+1} <strong>${Math.round(seconds/60)} min</strong></span>`).join('') : '<span>Configura tu FC máxima para calcular zonas</span>'}`;
+    document.getElementById('heartRateDetailSubtitle').textContent=`${log.date || ''} · ${values.length.toLocaleString('es-ES')} lecturas · ${Math.round((Number(log.duration)||0)/60)} min`;
+    document.getElementById('heartRateDetailStats').innerHTML=`<span>Media <strong>${Math.round(values.reduce((a,b)=>a+b,0)/values.length)} bpm</strong></span><span>Máxima <strong>${Math.max(...values)} bpm</strong></span><span>Mínima <strong>${Math.min(...values)} bpm</strong></span>`;
+    document.getElementById('heartRateZoneLegend').innerHTML=zones
+      ? zones.map((seconds,index)=>`<span><i style="background:${zoneColors[index]}"></i><b>Z${index+1}</b><small>${Math.round(seconds/60)} min</small></span>`).join('')
+      : '<div class="progress-note">Configura tu FC máxima para colorear las cinco zonas.</div>';
     const missingTimes=(healthForLog(log).metrics?.heartRateSamples||[]).filter(sample=>!sample.time).length;
     document.getElementById('heartRateDetailQuality').textContent=missingTimes
       ? `Calidad: ${values.length} BPM válidos; Fitbit no entregó hora por muestra. El eje reparte las lecturas durante la duración registrada, sin inventar horas.`
@@ -1411,6 +1466,7 @@
       .gym-hr-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.gym-hr-subtitle{color:var(--muted);font-size:12px;margin-top:3px}
       .gym-hr-canvas-wrap{position:relative}.gym-hr-canvas-wrap canvas{width:100%;height:320px;display:block;touch-action:pan-y}.gym-hr-tooltip{display:none;position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800;pointer-events:none}
       .gym-hr-stats,.gym-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.gym-hr-stats span,.gym-analysis-grid span{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px;color:var(--muted);font-size:11px}.gym-hr-stats strong,.gym-analysis-grid strong{display:block;color:var(--text);font-size:15px;margin-top:3px}
+      .gym-hr-dialog{background:radial-gradient(circle at 88% 3%,color-mix(in srgb,var(--done) 13%,transparent),transparent 32%),var(--bg)}.gym-hr-guide{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;padding:9px 11px;border:1px solid color-mix(in srgb,var(--done) 24%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--done) 7%,var(--surface));color:var(--muted);font-size:11px;font-weight:700}.gym-hr-guide button{border:0;background:transparent;color:var(--accent2);font:800 10px DM Sans,sans-serif;cursor:pointer;white-space:nowrap}.gym-hr-canvas-wrap{border:1px solid rgba(255,255,255,.06);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(0,0,0,.08));overflow:hidden}.gym-hr-canvas-wrap canvas{cursor:crosshair;outline:none}.gym-hr-canvas-wrap canvas:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}.gym-hr-tooltip{display:grid!important;gap:1px;opacity:0;visibility:hidden;min-width:104px;text-align:center;transform:translate(-50%,-2px);transition:opacity .12s ease,transform .12s ease;z-index:3}.gym-hr-tooltip.show{opacity:1;visibility:visible;transform:translate(-50%,0)}.gym-hr-tooltip strong{color:var(--text);font-size:13px}.gym-hr-tooltip span{color:var(--muted);font-size:9px}.gym-hr-selection{display:flex;align-items:baseline;gap:8px;min-height:22px;margin:10px 2px 0;color:var(--muted);font-size:11px}.gym-hr-selection strong{color:var(--text);font-size:17px}.gym-hr-selection span{line-height:1.35}.gym-hr-zone-legend{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}.gym-hr-zone-legend>span{display:grid;grid-template-columns:7px auto;align-items:center;column-gap:5px;padding:7px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.025)}.gym-hr-zone-legend i{width:7px;height:7px;border-radius:50%}.gym-hr-zone-legend b{font-size:10px}.gym-hr-zone-legend small{grid-column:2;color:var(--muted);font-size:9px}.gym-hr-stats span{background:linear-gradient(145deg,color-mix(in srgb,var(--done) 7%,var(--surface)),var(--surface));border-radius:14px}.gym-hr-stats strong{font-size:18px}
       .gym-health-analysis,.gym-health-profile{margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--card)}.gym-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gym-profile-grid label{font-size:11px;color:var(--muted);font-weight:800}.gym-profile-grid input{width:100%;margin-top:5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px;box-sizing:border-box}
       .gym-rest-settings{margin-bottom:12px}.gym-rest-setting-row{display:grid;gap:7px;margin-top:13px}.gym-rest-setting-row label{display:flex;align-items:baseline;justify-content:space-between;gap:8px;color:var(--text);font-size:12px;font-weight:900}.gym-rest-setting-row label span{color:var(--muted);font-size:10px;font-weight:700}.gym-rest-setting-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.gym-rest-setting-controls input{min-width:0;width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--text);padding:10px 12px;font:800 14px DM Sans,sans-serif}.gym-rest-setting-controls .ghost-btn{min-height:42px}.gym-rest-settings #gymRestSettingHelp{margin-top:8px}.gym-rest-settings #gymRestSettingHelp strong{color:var(--accent2)}
       .gym-routine-timer-settings{margin:4px 0 18px;padding:14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--border));border-radius:15px;background:color-mix(in srgb,var(--accent) 7%,var(--card))}.gym-routine-timer-settings-title{font-size:14px;font-weight:900}.gym-routine-timer-settings-copy{margin:4px 0 12px;color:var(--muted);font-size:11px;line-height:1.45}.gym-routine-timer-settings label{display:block;margin:10px 0 5px;color:var(--muted);font-size:11px;font-weight:800}.gym-routine-timer-settings select,.gym-routine-timer-settings input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--text);padding:10px 11px;font:700 13px DM Sans,sans-serif}.gym-routine-timer-settings [hidden]{display:none!important}.gym-routine-timer-badge{border-color:color-mix(in srgb,var(--accent) 28%,var(--border))!important;color:var(--accent2)!important}
@@ -1423,7 +1479,7 @@
       .finish-feedback{margin:0 0 16px;padding:12px;border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--surface) 72%,transparent);text-align:left}.finish-rpe-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:900}.finish-rpe-head strong{color:var(--accent2)}.finish-feedback input[type=range]{width:100%;margin:10px 0 2px;accent-color:var(--accent)}.finish-rpe-scale{display:flex;justify-content:space-between;color:var(--muted);font-size:9px;font-weight:700}.finish-rpe-clear{display:block;margin:3px 0 9px auto;padding:3px 0;border:0;background:transparent;color:var(--muted);font:700 10px DM Sans,sans-serif}.finish-note-label{display:block;margin:5px 0;color:var(--muted);font-size:10px;font-weight:800}.finish-feedback textarea{box-sizing:border-box;width:100%;resize:none;border:1px solid var(--border);border-radius:10px;padding:9px;background:var(--bg);color:var(--text);font:700 12px/1.4 DM Sans,sans-serif}.progression-suggestion{display:flex;align-items:flex-start;gap:8px;margin:8px 12px 0;padding:8px 9px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.025)}.progression-suggestion.up{border-color:color-mix(in srgb,var(--done) 28%,var(--border));background:color-mix(in srgb,var(--done) 7%,transparent)}.progression-suggestion-icon{display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;border-radius:8px;background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent2);font-weight:900}.progression-suggestion strong,.progression-suggestion small{display:block}.progression-suggestion strong{font-size:11px}.progression-suggestion small{margin-top:2px;color:var(--muted);font-size:9px;line-height:1.35}.session-feedback{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap;margin:-4px 0 12px}.history-chip.effort{color:var(--accent2);border-color:color-mix(in srgb,var(--accent) 28%,var(--border))}.session-feedback-note{flex:1 1 180px;padding:7px 9px;border-left:2px solid color-mix(in srgb,var(--accent) 40%,var(--border));color:var(--muted);font-size:11px;line-height:1.4}
       .gym-note-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.gym-note-toolbar span{color:var(--muted);font-size:11px}.gym-note-start{margin-left:6px}
       .gym-update-prompt{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:10030;display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:10px 12px;box-shadow:0 18px 40px rgba(0,0,0,.45)}.gym-update-prompt span{flex:1;font-weight:800}.gym-update-prompt button{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:800}
-      @media(max-width:640px){.gym-hr-stats,.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(122px + env(safe-area-inset-bottom,0px))}.gym-calendar-hr{padding:12px;margin-inline:-2px}.gym-calendar-hr-chart,.gym-calendar-hr-canvas{height:138px}.gym-calendar-hr-stats strong{font-size:17px}#phase-active .gym-series-step{height:32px;width:23px;font-size:18px}#phase-active .gym-series-stepper .series-input{padding-left:24px;padding-right:24px}#phase-active .gym-workout-tools{grid-template-columns:minmax(0,1fr) 96px}}
+      @media(max-width:640px){.gym-hr-overlay{padding:8px}.gym-hr-dialog{padding:13px;border-radius:17px}.gym-hr-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.gym-analysis-grid,.gym-profile-grid{grid-template-columns:1fr 1fr}.gym-hr-canvas-wrap canvas{height:270px}.gym-hr-zone-legend{grid-template-columns:repeat(5,minmax(46px,1fr));overflow-x:auto;padding-bottom:3px}.gym-hr-guide{align-items:flex-start}.gym-hr-selection{align-items:flex-start;flex-direction:column;gap:1px}.gym-cloud-status{bottom:calc(78px + env(safe-area-inset-bottom,0px))}body.gym-workout-tools-active .gym-cloud-status{bottom:calc(122px + env(safe-area-inset-bottom,0px))}.gym-calendar-hr{padding:12px;margin-inline:-2px}.gym-calendar-hr-chart,.gym-calendar-hr-canvas{height:138px}.gym-calendar-hr-stats strong{font-size:17px}#phase-active .gym-series-step{height:32px;width:23px;font-size:18px}#phase-active .gym-series-stepper .series-input{padding-left:24px;padding-right:24px}#phase-active .gym-workout-tools{grid-template-columns:minmax(0,1fr) 96px}}
       .health-actions-primary{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}.health-actions-primary .ghost-btn{min-height:46px}.health-actions-primary .ghost-btn[hidden]{display:none}.gym-health-more{margin-top:10px;border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--surface) 72%,transparent);overflow:hidden}.gym-health-more summary{padding:13px 14px;color:var(--text);font-size:12px;font-weight:900;cursor:pointer;list-style:none;touch-action:manipulation}.gym-health-more summary::-webkit-details-marker{display:none}.gym-health-more summary:after{content:'+';float:right;color:var(--accent2);font-size:17px;line-height:.8}.gym-health-more[open] summary:after{content:'-'}.gym-health-more[open] summary{border-bottom:1px solid var(--border)}.gym-health-more-title{margin:14px 14px 8px;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.gym-health-more .health-actions{padding:0 12px}.gym-health-more .health-note{margin:8px 14px 2px}.gym-health-more .gym-health-signout{width:calc(100% - 24px);margin:14px 12px 12px;color:#fca5a5}
       @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.gym-cloud-status,.gym-update-prompt{transition:none!important}}
     `;
