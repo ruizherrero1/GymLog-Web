@@ -4986,8 +4986,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-07-27T15:34:06.103Z",
-      "updatedAt": "2026-07-27T15:34:06.103Z"
+      "createdAt": "2026-07-28T15:27:45.221Z",
+      "updatedAt": "2026-07-28T15:27:45.221Z"
     }
   ],
   "workoutLog": [],
@@ -6050,7 +6050,6 @@ function addSeries(exId){
   renderActiveExercises();
 }
 function askFinishWorkout(){
-  clearFinishRpe();
   const note = document.getElementById('finishNote');
   if(note) note.value = '';
   openModal('overlayConfirmFinish');
@@ -7964,6 +7963,12 @@ function sessionFeedbackHtml(entry){
 function finishWorkout(){
   const r = state.routines.find(x=>x.id===currentRoutineId);
   if(!r) return;
+  const completedExercises = r.exercises.filter(ex=>Array.isArray(workoutData[ex.id]?.series));
+  if(!completedExercises.length){
+    persistActiveWorkout();
+    showToast('No se pudo finalizar. Tu progreso sigue guardado.');
+    return;
+  }
   const finishNote = String(document.getElementById('finishNote')?.value || '').trim().slice(0,240);
   stopAllSeriesTimers();
   closeFocusTimer();
@@ -7982,7 +7987,7 @@ function finishWorkout(){
     duration: elapsed,
     durationLabel: mins > 0 ? `${mins} min` : `${elapsed}s`,
     ...(finishNote ? { note:finishNote } : {}),
-    exercises: r.exercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutData[ex.id].series.map(s=>({...s})) })),
+    exercises: completedExercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutData[ex.id].series.map(s=>({...s})) })),
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
   state.workoutLog.push(entry);
