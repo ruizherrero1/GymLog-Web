@@ -4986,8 +4986,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-07-28T15:27:45.221Z",
-      "updatedAt": "2026-07-28T15:27:45.221Z"
+      "createdAt": "2026-07-28T15:31:02.821Z",
+      "updatedAt": "2026-07-28T15:31:02.821Z"
     }
   ],
   "workoutLog": [],
@@ -9992,7 +9992,7 @@ async function initializeGymLogCloud(){
   }
   history.replaceState({}, document.title, `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`);
   if(gymLogGoogleConnected){
-    for(const log of state.workoutLog.filter(item => healthForLog(item).autoSyncRequested && ['pending','error'].includes(healthForLog(item).syncStatus)).slice(0,3)){
+    for(const log of [...state.workoutLog].filter(item => healthForLog(item).autoSyncRequested && ['pending','error'].includes(healthForLog(item).syncStatus)).sort((a,b) => String(b.completedAt || b.date || '').localeCompare(String(a.completedAt || a.date || ''))).slice(0,5)){
       await syncWorkoutToHealth(log.id, { backup:true, silent:true });
     }
   }
