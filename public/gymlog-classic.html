@@ -239,6 +239,10 @@
   .history-chip.success { color: var(--done); border-color: color-mix(in srgb, var(--done) 24%, transparent); background: color-mix(in srgb, var(--done) 9%, transparent); }
   .history-chip.warn { color: #fbbf24; border-color: rgba(251,191,36,.24); background: rgba(251,191,36,.08); }
   .history-chip.info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 24%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .edit-session-meta-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.72fr) minmax(0,.82fr); gap:10px; margin-bottom:16px; }
+  .edit-session-meta-grid .field { min-width:0; margin-bottom:0; }
+  .edit-session-routine-field { grid-column:1 / -1; }
+  .edit-session-series-row { display:grid; grid-template-columns:34px minmax(72px,1fr) var(--edit-weight-width,0px) 44px 42px; gap:8px; align-items:center; min-width:0; }
   .day-summary-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; margin: 12px 0; }
   .day-summary-item { background: rgba(255,255,255,.04); border:1px solid var(--border); border-radius:14px; padding:12px; min-width:0; }
   .day-summary-label { color:var(--muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
@@ -287,6 +291,11 @@
     .history-day-title, .progress-filter-title { font-size: 21px; }
     .history-day-header, .history-session-top, .progress-session-head { flex-direction: column; align-items: stretch; }
     .history-day-total, .progress-session-volume { width: fit-content; }
+    .history-session-meta { gap:6px; }
+    .history-chip { padding:6px 8px; font-size:11px; }
+    .edit-session-meta-grid { grid-template-columns:minmax(0,1fr) minmax(0,.8fr); }
+    .edit-session-routine-field, .edit-session-duration-field { grid-column:1 / -1; }
+    .edit-session-series-row { grid-template-columns:30px minmax(62px,1fr) var(--edit-weight-width,0px) 42px 38px; gap:6px; }
   }
 
   /* MODALS */
@@ -4986,8 +4995,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-07-28T15:31:02.821Z",
-      "updatedAt": "2026-07-28T15:31:02.821Z"
+      "createdAt": "2026-07-28T15:51:08.798Z",
+      "updatedAt": "2026-07-28T15:51:08.798Z"
     }
   ],
   "workoutLog": [],
@@ -6774,6 +6783,7 @@ function showDayDetail(ds){
               <div>
                 <div class="history-session-name">${escapeHtml(e.routineName)}</div>
                 <div class="history-session-meta">
+                  <div class="history-chip info" title="Intervalo usado para recuperar la frecuencia cardiaca">${escapeHtml(sessionTimeRangeLabel(e))}</div>
                   <div class="history-chip">${e.durationLabel ? escapeHtml(e.durationLabel) : 'Sin tiempo'}</div>
                   <div class="history-chip">${Math.round(sessionVolume(e))} kg</div>
                   <div class="history-chip muted">${done}/${total} series</div>
@@ -6812,6 +6822,7 @@ function showDayDetail(ds){
 
 let editingLogId = null;
 let editingLogDraft = null;
+let editingLogTime = '12:00';
 
 function formatWorkoutDurationLabel(seconds){
   const safe = Math.max(0, Math.round(+seconds || 0));
@@ -6822,17 +6833,54 @@ function getEditableDurationMinutes(log){
   const seconds = Math.max(0, Math.round(+log.duration || 0));
   return Math.round(seconds / 60);
 }
+function sessionStartDate(log){
+  const explicit = Date.parse(log?.startedAt || '');
+  if(Number.isFinite(explicit)) return new Date(explicit);
+  const completed = Date.parse(log?.completedAt || '');
+  if(Number.isFinite(completed)) return new Date(completed - (Math.max(0,+log.duration || 0) * 1000));
+  return null;
+}
+function formatSessionClock(date){
+  return date instanceof Date && Number.isFinite(date.getTime())
+    ? date.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',hour12:false})
+    : '';
+}
+function getEditableSessionTime(log){
+  return formatSessionClock(sessionStartDate(log)) || '12:00';
+}
+function sessionTimeRangeLabel(log){
+  const start = sessionStartDate(log);
+  if(!start) return 'Hora pendiente';
+  const parsedEnd = Date.parse(log?.completedAt || '');
+  const end = Number.isFinite(parsedEnd)
+    ? new Date(parsedEnd)
+    : new Date(start.getTime() + (Math.max(0,+log.duration || 0) * 1000));
+  return `${formatSessionClock(start)}–${formatSessionClock(end)}`;
+}
+function applyEditedSessionDateTime(log, timeValue){
+  const safeTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(timeValue || '')) ? timeValue : '12:00';
+  const start = new Date(`${log.date}T${safeTime}:00`);
+  if(!Number.isFinite(start.getTime())) return log;
+  log.startedAt = start.toISOString();
+  log.completedAt = new Date(start.getTime() + (Math.max(0,+log.duration || 0) * 1000)).toISOString();
+  return log;
+}
 function openEditLog(id){
   const log = state.workoutLog.find(entry => entry.id === id);
   if(!log) return;
   editingLogId = id;
   editingLogDraft = structuredClone(log);
+  editingLogTime = getEditableSessionTime(editingLogDraft);
   if(!editingLogDraft.exercises) editingLogDraft.exercises = [];
   renderEditSessionForm();
   openModal('overlayEditSession');
 }
 function updateEditSessionField(field, value){
   if(!editingLogDraft) return;
+  if(field === 'time'){
+    editingLogTime = value;
+    return;
+  }
   if(field === 'duration'){
     const mins = Math.max(0, parseFloat(value) || 0);
     editingLogDraft.duration = Math.round(mins * 60);
@@ -6887,11 +6935,13 @@ function renderEditSessionForm(){
   const container = document.getElementById('editSessionContent');
   if(!container || !editingLogDraft) return;
   container.innerHTML = `
-    <div class="filters-grid" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="edit-session-meta-grid">
       <div class="field"><label>Fecha</label><input type="date" value="${escapeAttribute(editingLogDraft.date || isoDate(new Date()))}" onchange="updateEditSessionField('date', this.value)"></div>
-      <div class="field"><label>Rutina</label><input value="${escapeAttribute(editingLogDraft.routineName || '')}" oninput="updateEditSessionField('routineName', this.value)"></div>
-      <div class="field"><label>Duración del entreno (min)</label><input type="number" min="0" step="1" value="${getEditableDurationMinutes(editingLogDraft)}" oninput="updateEditSessionField('duration', this.value)"></div>
+      <div class="field"><label>Hora de inicio</label><input type="time" step="60" value="${escapeAttribute(editingLogTime)}" onchange="updateEditSessionField('time', this.value)"></div>
+      <div class="field edit-session-duration-field"><label>Duración (min)</label><input type="number" min="0" step="1" value="${getEditableDurationMinutes(editingLogDraft)}" oninput="updateEditSessionField('duration', this.value)"></div>
+      <div class="field edit-session-routine-field"><label>Rutina</label><input value="${escapeAttribute(editingLogDraft.routineName || '')}" oninput="updateEditSessionField('routineName', this.value)"></div>
     </div>
+    <div class="history-chip info" style="width:fit-content;margin:-6px 0 14px">Google Health usará la fecha, hora y duración de arriba para recuperar la FC.</div>
     <div class="mini-list">
       ${editingLogDraft.exercises.map((ex, exIdx) => `
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px">
@@ -6907,7 +6957,7 @@ function renderEditSessionForm(){
               const isTime = ex.type === 'time';
               const isWeight = ex.type === 'weight';
               return `
-                <div style="display:grid;grid-template-columns:34px 1fr ${isWeight ? '1fr' : '0px'} 44px 42px;gap:8px;align-items:center">
+                <div class="edit-session-series-row" style="--edit-weight-width:${isWeight ? 'minmax(72px,1fr)' : '0px'}">
                   <div class="series-label">${seriesIdx + 1}</div>
                   ${isTime
                     ? `<input class="series-input" type="text" inputmode="numeric" value="${formatSeconds(s.duration ?? s.reps ?? 60)}" oninput="handleTimeInputTyping(this)" onchange="updateEditSeries(${exIdx},${seriesIdx},'duration',this.value)">`
@@ -6928,12 +6978,13 @@ function renderEditSessionForm(){
     <button class="btn btn-primary" style="width:100%" onclick="saveEditedSession()">Guardar cambios</button>
   `;
 }
-function normalizeEditedSession(log){
+function normalizeEditedSession(log, timeValue){
   const next = structuredClone(log);
   next.date = next.date || isoDate(new Date());
   next.routineName = (next.routineName || 'Entreno').trim() || 'Entreno';
   next.duration = Math.max(0, Math.round(+next.duration || 0));
   next.durationLabel = formatWorkoutDurationLabel(next.duration);
+  applyEditedSessionDateTime(next, timeValue);
   next.exercises = (next.exercises || []).map(ex => ({
     ...ex,
     series: (ex.series || []).map(s => {
@@ -6957,16 +7008,29 @@ function saveEditedSession(){
   if(!editingLogId || !editingLogDraft) return;
   const idx = state.workoutLog.findIndex(entry => entry.id === editingLogId);
   if(idx < 0) return;
-  const updated = normalizeEditedSession(editingLogDraft);
+  const updated = normalizeEditedSession(editingLogDraft, editingLogTime);
+  const health = healthForLog(updated);
+  updated.health = {
+    ...health,
+    syncStatus: health.remoteDataPointId ? health.syncStatus : 'pending',
+    metricsStatus: 'pending',
+    metricsError: '',
+    error: '',
+    autoSyncRequested: true
+  };
   state.workoutLog[idx] = updated;
   save();
   closeModal('overlayEditSession', true);
   editingLogId = null;
   editingLogDraft = null;
+  editingLogTime = '12:00';
   renderCalendar();
   showDayDetail(updated.date);
   renderProgress();
-  showToast('Sesión actualizada');
+  showToast('Sesión actualizada · FC pendiente de recuperar');
+  if(gymLogGoogleConnected && typeof syncWorkoutToHealth === 'function'){
+    setTimeout(()=>syncWorkoutToHealth(updated.id, { backup:true, silent:true }), 0);
+  }
 }
 function deleteLog(id, dateToReopen){
   if(!confirm('¿Eliminar esta sesión? Se guardará 30 días en la papelera.')) return;
