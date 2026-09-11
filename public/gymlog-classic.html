@@ -861,6 +861,14 @@
 .preview-search-btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 9px;border-radius:11px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.055);color:var(--text);font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap;touch-action:manipulation;}
 .preview-search-btn.google{color:#93c5fd}.preview-search-btn.youtube{color:#fca5a5}.preview-search-btn:active{transform:scale(.96);background:rgba(255,255,255,.10);}
 .active-exercise-search{display:flex;align-items:center;gap:5px}.active-search-btn{display:inline-flex;align-items:center;justify-content:center;width:31px;height:31px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.055);font-size:13px;font-weight:900;text-decoration:none}.active-search-btn.google{color:#93c5fd}.active-search-btn.youtube{color:#fca5a5}
+.free-workout-card{border:1px dashed color-mix(in srgb,var(--accent) 55%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 18%,transparent),rgba(255,255,255,.035));}
+.free-workout-card .r-name{color:var(--text)}
+.free-workout-card .free-workout-icon{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent);font-size:22px}
+.free-workout-builder{margin:0 0 14px;padding:16px;border-radius:20px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 13%,transparent),rgba(255,255,255,.035));border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));box-shadow:var(--glass-shadow)}
+.free-workout-builder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.free-workout-builder-title{font-size:17px;font-weight:900}.free-workout-builder-copy{margin-top:3px;color:var(--muted);font-size:12px;line-height:1.4}
+.free-workout-fields{display:grid;grid-template-columns:minmax(0,1fr) 132px auto;gap:8px}.free-workout-fields input,.free-workout-fields select,.free-type-select{min-width:0;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:0 11px;font:inherit}.free-workout-fields button{min-height:44px;border-radius:12px;padding:0 15px;border:0;background:var(--accent);color:#111;font-weight:900;cursor:pointer}.free-type-select{width:112px;height:36px;padding:0 8px;font-size:12px;font-weight:800}
+.free-exercise-empty{padding:24px 16px;text-align:center;border:1px dashed var(--border);border-radius:18px;color:var(--muted);font-size:13px;line-height:1.5}.free-remove-exercise{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.045);color:var(--muted);font-size:18px;cursor:pointer}.free-remove-exercise:active{transform:scale(.94)}
+.free-exercise-block .exercise-header-active{flex-wrap:wrap}.free-exercise-block .exercise-head-actions{width:100%;padding-left:32px;flex-wrap:wrap}.free-exercise-block .active-exercise-search{margin-left:auto}
 @media (max-width:480px){
   .preview-shell{padding:16px;border-radius:22px;}
   .preview-header-pro{gap:14px;}
@@ -879,6 +887,7 @@
   .preview-exercise-row{gap:8px;padding:9px 9px 9px 12px;border-radius:14px;}
   .preview-exercise-name{font-size:13px;}
   .preview-search-btn{min-height:35px;padding:0 8px;font-size:9px;border-radius:10px;}
+  .free-workout-builder{padding:14px;border-radius:18px}.free-workout-fields{grid-template-columns:minmax(0,1fr) 112px}.free-workout-fields button{grid-column:1/-1;width:100%}.free-type-select{width:104px}
 }
 .health-connect-card{background:linear-gradient(180deg,rgba(110,231,183,.1),rgba(255,255,255,.02));border:1px solid rgba(110,231,183,.24);border-radius:18px;padding:14px;margin-bottom:12px;}
 .health-connect-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
@@ -4928,6 +4937,7 @@ const STORAGE_KEY = 'gymlog-web-state-v3';
 const THEME_KEY = 'gymlog-web-theme-v4';
 const IMPORT_VERSION = 'gymlog-web-import-v3';
 const ACTIVE_WORKOUT_KEY = 'gymlog-web-active-workout-v3';
+const FREE_WORKOUT_ID = 'gymlog-free-workout';
 const LEGACY_STORAGE_KEYS = ['gymlog-web-state-v2','gymlog-web-state-v1','gymlog-ramon-state-v1','gymlog2-export-1777218631114'];
 const LEGACY_THEME_KEYS = ['gymlog-web-theme-v3','gymlog-web-theme-v2','gymlog-ramon-theme-v1','gymlog-theme-export-1777218631114'];
 const EMBEDDED_SIGNATURE_KEY = `${STORAGE_KEY}-embedded-signature`;
@@ -5009,8 +5019,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-07-28T16:34:03.911Z",
-      "updatedAt": "2026-07-28T16:34:03.911Z"
+      "createdAt": "2026-09-11T11:00:39.783Z",
+      "updatedAt": "2026-09-11T11:00:39.783Z"
     }
   ],
   "workoutLog": [],
@@ -5297,7 +5307,7 @@ function updateHeaderWorkoutBadge(){
     timeEl.textContent = '00:00';
     return;
   }
-  const routine = state.routines.find(r=>r.id===currentRoutineId);
+  const routine = getCurrentWorkoutRoutine();
   const name = routine ? routine.name : 'Entreno';
   const m = String(Math.floor(timerSeconds/60)).padStart(2,'0');
   const s = String(timerSeconds%60).padStart(2,'0');
@@ -5395,6 +5405,7 @@ function switchTab(tab,el){
 let previewRoutineId = null;
 let currentRoutineId = null;
 let workoutData = {};
+let freeWorkoutExercises = [];
 let activeTimers = {};
 let currentTab = 'workout';
 let activeWorkoutListExpanded = false;
@@ -5407,8 +5418,24 @@ let focusTimerAlertKey = '';
 let focusTimerAlertTimeout = null;
 let formDragIndex = null;
 
+function isFreeWorkout(){
+  return currentRoutineId === FREE_WORKOUT_ID;
+}
+
+function getCurrentWorkoutRoutine(){
+  if(isFreeWorkout()){
+    return {
+      id: FREE_WORKOUT_ID,
+      name: 'Entreno libre',
+      desc: 'Ejercicios elegidos durante la sesión.',
+      exercises: freeWorkoutExercises
+    };
+  }
+  return state.routines.find(routine => routine.id === currentRoutineId) || null;
+}
+
 function persistActiveWorkout(){
-  if(!currentRoutineId || !workoutData || !Object.keys(workoutData).length){
+  if(!currentRoutineId || !workoutData || (!isFreeWorkout() && !Object.keys(workoutData).length)){
     return;
   }
   const startedAt = timerStart || (Date.now() - ((timerSeconds || 0) * 1000));
@@ -5420,6 +5447,7 @@ function persistActiveWorkout(){
     activeWorkoutListExpanded,
     activeExercisePanels,
     activePerformancePanels,
+    ...(isFreeWorkout() ? { freeWorkoutExercises } : {}),
     savedAt: Date.now()
   };
   try{
@@ -5438,12 +5466,16 @@ function restoreActiveWorkout(){
     const raw = localStorage.getItem(ACTIVE_WORKOUT_KEY);
     if(!raw) return false;
     const snapshot = JSON.parse(raw);
-    const routine = state.routines.find(r => r.id === snapshot.routineId);
+    const restoringFreeWorkout = snapshot.routineId === FREE_WORKOUT_ID;
+    const routine = restoringFreeWorkout
+      ? { id:FREE_WORKOUT_ID, name:'Entreno libre', exercises:Array.isArray(snapshot.freeWorkoutExercises) ? snapshot.freeWorkoutExercises : [] }
+      : state.routines.find(r => r.id === snapshot.routineId);
     if(!routine || !snapshot.workoutData){
       clearActiveWorkout();
       return false;
     }
     currentRoutineId = snapshot.routineId;
+    freeWorkoutExercises = restoringFreeWorkout ? routine.exercises : [];
     workoutData = snapshot.workoutData;
     activeWorkoutListExpanded = !!snapshot.activeWorkoutListExpanded;
     activeExercisePanels = snapshot.activeExercisePanels || {};
@@ -5534,12 +5566,21 @@ function renderWorkoutGrid(){
   document.getElementById('phase-active').style.display='none';
 
   const grid = document.getElementById('workoutRoutineGrid');
-  if(!state.routines.length){
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No tienes rutinas aún. Crea una en la pestaña Rutinas.</div>';
-    return;
-  }
+  const accent = getThemeAccent();
+  const freeCard = `
+    <div class="routine-card routine-card-compact free-workout-card" onclick="startFreeWorkout()">
+      <div class="routine-card-main">
+        <span class="free-workout-icon" aria-hidden="true">＋</span>
+        <div class="r-name">Entreno libre</div>
+        <div class="r-meta">Empieza sin rutina y añade ejercicios sobre la marcha.</div>
+      </div>
+      <div class="r-footer r-footer-inline">
+        <div class="r-last">Tú eliges ejercicios y series</div>
+        <button class="r-start-btn" style="background:${rgbaFromHex(accent,0.16)}; border-color:${rgbaFromHex(accent,0.30)}; color:${rgbaFromHex(accent,0.92)};" onclick="event.stopPropagation(); startFreeWorkout()">Empezar</button>
+      </div>
+    </div>`;
 
-  grid.innerHTML = state.routines.map(r=>{
+  const routineCards = state.routines.map(r=>{
     const totalSeries = r.exercises.reduce((a,e)=>a + (+e.defaultSeries || 0), 0);
     const workoutMeta = getRoutineWorkoutMeta(r);
     const accent = getThemeAccent();
@@ -5547,7 +5588,7 @@ function renderWorkoutGrid(){
     const accentBorder = rgbaFromHex(accent, 0.30);
     const accentText = rgbaFromHex(accent, 0.92);
     return `
-      <div class="routine-card routine-card-compact" onclick="showPreview('${r.id}')">
+      <div class="routine-card routine-card-compact" data-routine-id="${escapeAttribute(r.id)}" onclick="showPreview('${r.id}')">
         <div class="routine-card-main">
           <div class="r-name">${escapeHtml(r.name)}</div>
           <div class="r-badges">
@@ -5563,6 +5604,8 @@ function renderWorkoutGrid(){
       </div>
     `;
   }).join('');
+  const emptyHint = state.routines.length ? '' : '<div class="empty" style="grid-column:1/-1">No tienes rutinas aún. Puedes usar Entreno libre o crear una en la pestaña Rutinas.</div>';
+  grid.innerHTML = freeCard + routineCards + emptyHint;
 }
 
 function showPreview(id){
@@ -5779,6 +5822,7 @@ function lastExerciseComparisonHtml(exercise, currentSeries = []){
 
 function startWorkout(id){
   currentRoutineId = id;
+  freeWorkoutExercises = [];
   document.querySelector('header')?.classList.add('workout-mode');
   activeWorkoutListExpanded = false;
   activeExercisePanels = {};
@@ -5836,6 +5880,132 @@ function startWorkout(id){
   requestWorkoutWakeLock();
   renderActiveExercises();
   persistActiveWorkout();
+}
+
+function createEmptyFreeSeries(type){
+  if(type === 'time'){
+    return { reps:null, duration:null, remaining:null, weight:0, done:false, empty:true };
+  }
+  return { reps:null, weight:type === 'weight' ? null : 0, done:false, empty:true };
+}
+
+function startFreeWorkout(){
+  currentRoutineId = FREE_WORKOUT_ID;
+  freeWorkoutExercises = [];
+  workoutData = {};
+  activeWorkoutListExpanded = false;
+  activeExercisePanels = {};
+  activePerformancePanels = {};
+  lastCompletedSeriesKey = '';
+  focusTimerState = { open:false, exId:null, idx:null };
+  document.querySelector('header')?.classList.add('workout-mode');
+  document.getElementById('phase-grid').style.display='none';
+  document.getElementById('phase-preview').style.display='none';
+  document.getElementById('phase-active').style.display='block';
+  document.getElementById('activeName').textContent = 'Entreno libre';
+  startTimer();
+  requestWorkoutWakeLock();
+  renderActiveExercises();
+  persistActiveWorkout();
+}
+
+function freeWorkoutBuilderHtml(){
+  if(!isFreeWorkout()) return '';
+  return `
+    <section class="free-workout-builder" aria-label="Añadir ejercicio al entreno libre">
+      <div class="free-workout-builder-head">
+        <div>
+          <div class="free-workout-builder-title">Añadir ejercicio</div>
+          <div class="free-workout-builder-copy">Busca uno de la biblioteca o escribe un nombre propio. Cada ejercicio empieza con una serie vacía.</div>
+        </div>
+      </div>
+      <div class="free-workout-fields">
+        <input id="freeExerciseName" list="freeExerciseList" autocomplete="off" placeholder="Ejercicio" aria-label="Nombre del ejercicio" oninput="updateFreeExerciseOptions(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addFreeWorkoutExercise();}">
+        <datalist id="freeExerciseList">${buildExerciseOptions('')}</datalist>
+        <select id="freeExerciseType" aria-label="Tipo de serie">
+          <option value="weight">Peso</option>
+          <option value="bodyweight">Corporal</option>
+          <option value="time">Tiempo</option>
+        </select>
+        <button type="button" onclick="addFreeWorkoutExercise()">＋ Añadir</button>
+      </div>
+    </section>`;
+}
+
+function updateFreeExerciseOptions(query){
+  const list = document.getElementById('freeExerciseList');
+  if(list) list.innerHTML = buildExerciseOptions(query);
+}
+
+function addFreeWorkoutExercise(){
+  if(!isFreeWorkout()) return;
+  const input = document.getElementById('freeExerciseName');
+  const typeInput = document.getElementById('freeExerciseType');
+  const name = String(input?.value || '').trim().slice(0,100);
+  const type = ['weight','bodyweight','time'].includes(typeInput?.value) ? typeInput.value : 'weight';
+  if(!name){
+    showToast('Escribe o selecciona un ejercicio');
+    input?.focus();
+    return;
+  }
+  if(freeWorkoutExercises.some(exercise => normalizeExerciseText(exercise.name) === normalizeExerciseText(name))){
+    showToast('Ese ejercicio ya está añadido');
+    input?.focus();
+    return;
+  }
+  const libraryExercise = EXERCISE_LIBRARY.find(item => normalizeExerciseText(item.nombre) === normalizeExerciseText(name));
+  const exercise = {
+    id:uid('free-ex'),
+    name,
+    type,
+    group:libraryExercise?.grupo || '',
+    notes:'',
+    defaultSeries:1,
+    defaultReps:0,
+    defaultWeight:0,
+    defaultDuration:0
+  };
+  freeWorkoutExercises.push(exercise);
+  workoutData[exercise.id] = { series:[createEmptyFreeSeries(type)] };
+  activeExercisePanels[exercise.id] = true;
+  persistActiveWorkout();
+  renderActiveExercises();
+  setTimeout(()=>{
+    document.querySelector(`[data-exercise-id="${exercise.id}"]`)?.scrollIntoView({ behavior:'smooth', block:'center' });
+  },20);
+}
+
+function changeFreeExerciseType(exId, nextType){
+  if(!isFreeWorkout() || !['weight','bodyweight','time'].includes(nextType)) return;
+  const exercise = freeWorkoutExercises.find(item => item.id === exId);
+  const series = workoutData[exId]?.series || [];
+  if(!exercise || exercise.type === nextType) return;
+  const hasRecordedData = series.some(item => item.done || (!item.empty && ((+item.reps || 0) > 0 || (+item.weight || 0) > 0 || (+item.duration || 0) > 0)));
+  if(hasRecordedData && !confirm('Cambiar el tipo vaciará las series de este ejercicio. ¿Continuar?')){
+    renderActiveExercises();
+    return;
+  }
+  series.forEach((item,index)=>stopSeriesTimer(exId,index));
+  exercise.type = nextType;
+  workoutData[exId].series = series.length ? series.map(()=>createEmptyFreeSeries(nextType)) : [createEmptyFreeSeries(nextType)];
+  persistActiveWorkout();
+  renderActiveExercises();
+}
+
+function removeFreeWorkoutExercise(exId){
+  if(!isFreeWorkout()) return;
+  const exercise = freeWorkoutExercises.find(item => item.id === exId);
+  if(!exercise) return;
+  const series = workoutData[exId]?.series || [];
+  const hasRecordedData = series.some(item => item.done || !item.empty);
+  if(hasRecordedData && !confirm(`¿Quitar ${exercise.name} y sus series de este entreno?`)) return;
+  series.forEach((item,index)=>stopSeriesTimer(exId,index));
+  freeWorkoutExercises = freeWorkoutExercises.filter(item => item.id !== exId);
+  delete workoutData[exId];
+  delete activeExercisePanels[exId];
+  delete activePerformancePanels[exId];
+  persistActiveWorkout();
+  renderActiveExercises();
 }
 
 function renderActiveExercises(){
@@ -6042,22 +6212,35 @@ function toggleAllSeries(exId){
 function updateSeries(exId,idx,field,val){
   const parsed = field === 'weight' ? parseFloat(val) : parseInt(val,10);
   const safe = Number.isFinite(parsed) ? parsed : 0;
-  workoutData[exId].series[idx][field] = safe;
+  const series = workoutData[exId]?.series?.[idx];
+  if(!series) return;
+  series[field] = safe;
+  delete series.empty;
   persistActiveWorkout();
   renderActiveExercises();
 }
 function updateSeriesTime(exId, idx, value){
   const safe = parseDurationInput(value);
-  workoutData[exId].series[idx].reps = safe;
-  workoutData[exId].series[idx].duration = safe;
-  workoutData[exId].series[idx].remaining = safe;
+  const series = workoutData[exId]?.series?.[idx];
+  if(!series) return;
+  series.reps = safe;
+  series.duration = safe;
+  series.remaining = safe;
+  delete series.empty;
   stopSeriesTimer(exId, idx);
   persistActiveWorkout();
   renderActiveExercises();
 }
 function addSeries(exId){
-  const ex = state.routines.find(r=>r.id===currentRoutineId)?.exercises.find(e=>e.id===exId);
+  const ex = getCurrentWorkoutRoutine()?.exercises.find(e=>e.id===exId);
   if(!ex) return;
+  if(isFreeWorkout()){
+    workoutData[exId].series.push(createEmptyFreeSeries(ex.type));
+    activeExercisePanels[exId] = true;
+    persistActiveWorkout();
+    renderActiveExercises();
+    return;
+  }
   const last = workoutData[exId].series[workoutData[exId].series.length-1];
   if(ex.type === 'time'){
     const baseDuration = +(last?.duration || last?.reps || ex.defaultDuration || ex.defaultReps || 60);
@@ -7654,7 +7837,7 @@ function signalSeriesCompleted(seriesKey){
   }, 650);
 }
 function getActiveWorkoutSnapshot(){
-  const routine = state.routines.find(x=>x.id===currentRoutineId);
+  const routine = getCurrentWorkoutRoutine();
   if(!routine) return null;
   const exerciseStats = routine.exercises.map((ex, idx) => {
     const d = workoutData[ex.id] || { series: [] };
@@ -7745,7 +7928,7 @@ function triggerFocusTimerAlert(timerKey){
   }, 2200);
 }
 function findNextTimedSeries(currentExId, currentIdx){
-  const routine = state.routines.find(r => r.id === currentRoutineId);
+  const routine = getCurrentWorkoutRoutine();
   if(!routine) return null;
   let passedCurrent = false;
   for(const ex of routine.exercises){
@@ -7795,7 +7978,7 @@ function renderFocusTimer(){
     return;
   }
   const series = workoutData[focusTimerState.exId]?.series?.[focusTimerState.idx];
-  const routine = state.routines.find(r => r.id === currentRoutineId);
+  const routine = getCurrentWorkoutRoutine();
   const exercise = routine?.exercises.find(ex => ex.id === focusTimerState.exId);
   if(!series || !exercise){
     focusTimerState.open = false;
@@ -7849,16 +8032,19 @@ function renderActiveExercises(){
   const { exerciseStats, currentStat, currentExerciseId, completedExercises, totalSeries, doneSeries, progressPct } = snapshot;
   const summaryCard = document.getElementById('activeSummaryCard');
   if(summaryCard){
-    const typeLabel = currentStat?.ex.type === 'time' ? 'Tiempo' : (currentStat?.ex.type === 'weight' ? 'Peso' : 'Reps');
+    const emptyFreeWorkout = isFreeWorkout() && !exerciseStats.length;
+    const typeLabel = emptyFreeWorkout ? 'Libre' : (currentStat?.ex.type === 'time' ? 'Tiempo' : (currentStat?.ex.type === 'weight' ? 'Peso' : 'Reps'));
     const nextPendingSeries = currentStat?.d.series.find(s=>!s.done);
-    const hintValue = currentStat?.ex.type === 'time'
+    const hintValue = emptyFreeWorkout
+      ? 'Peso, corporal o tiempo'
+      : currentStat?.ex.type === 'time'
       ? formatSeconds(nextPendingSeries?.remaining ?? nextPendingSeries?.duration ?? currentStat?.d.series[0]?.duration ?? currentStat?.d.series[0]?.reps ?? 60)
       : `${nextPendingSeries?.reps ?? currentStat?.d.series[0]?.reps ?? 0} reps`;
     summaryCard.innerHTML = `
       <div class="active-summary-top">
         <div>
-          <div class="active-summary-label">Ahora te toca</div>
-          <div class="active-current-name">${escapeHtml(currentStat?.ex.name || 'Rutina completada')}</div>
+          <div class="active-summary-label">${emptyFreeWorkout ? 'Entreno a tu manera' : 'Ahora te toca'}</div>
+          <div class="active-current-name">${escapeHtml(currentStat?.ex.name || (emptyFreeWorkout ? 'Añade tu primer ejercicio' : 'Rutina completada'))}</div>
           <div class="active-current-meta">
             <div class="active-meta-pill">${completedExercises}/${exerciseStats.length} ejercicios</div>
             <div class="active-meta-pill">${doneSeries}/${totalSeries} series</div>
@@ -7866,7 +8052,7 @@ function renderActiveExercises(){
           </div>
           <div class="active-summary-actions">
             <button class="active-summary-toggle" onclick="toggleActiveExerciseList()">${activeWorkoutListExpanded ? 'Ocultar lista' : 'Ver lista completa'}</button>
-            <button class="active-summary-toggle" onclick="jumpToNextExercise()">Siguiente ejercicio</button>
+            ${emptyFreeWorkout ? '' : '<button class="active-summary-toggle" onclick="jumpToNextExercise()">Siguiente ejercicio</button>'}
           </div>
         </div>
         <div class="active-progress-ring" style="--ring-progress:${progressPct}%"><span>${progressPct}%</span></div>
@@ -7895,7 +8081,7 @@ function renderActiveExercises(){
   if(exerciseCount) exerciseCount.textContent = `${exerciseStats.length} ejercicios`;
   const activeExercises = document.getElementById('activeExercises');
   if(activeExercises){
-    activeExercises.innerHTML = exerciseStats.map(item => {
+    const exerciseCardsHtml = exerciseStats.map(item => {
       const { ex, d, done, total, allDone } = item;
       const showW = ex.type === 'weight';
       const isTime = ex.type === 'time';
@@ -7903,6 +8089,7 @@ function renderActiveExercises(){
       const showPerformance = !!activePerformancePanels[ex.id];
       const hasPerformance = !!getLastExercisePerformance(ex.name);
       const classes = ['exercise-block'];
+      if(isFreeWorkout()) classes.push('free-exercise-block');
       if(ex.id === currentExerciseId) classes.push('current-ex');
       else if(allDone) classes.push('done-ex');
       else classes.push('future-ex');
@@ -7915,13 +8102,19 @@ function renderActiveExercises(){
               <div class="ex-name">${escapeHtml(ex.name)}</div>
             </div>
             <div class="exercise-head-actions">
+              ${isFreeWorkout() ? `<select class="free-type-select" aria-label="Tipo de serie de ${escapeAttribute(ex.name)}" onclick="event.stopPropagation()" onchange="changeFreeExerciseType('${ex.id}',this.value)">
+                <option value="weight" ${ex.type === 'weight' ? 'selected' : ''}>Peso</option>
+                <option value="bodyweight" ${ex.type === 'bodyweight' ? 'selected' : ''}>Corporal</option>
+                <option value="time" ${ex.type === 'time' ? 'selected' : ''}>Tiempo</option>
+              </select>` : ''}
               ${exerciseSearchLinks(ex.name)}
               ${hasPerformance ? `<button class="performance-toggle-btn ${showPerformance ? 'active' : ''}" title="Ver ultima vez" onclick="togglePerformancePanel('${ex.id}')">↻</button>` : ''}
+              ${isFreeWorkout() ? `<button class="free-remove-exercise" title="Quitar ejercicio" aria-label="Quitar ${escapeAttribute(ex.name)}" onclick="removeFreeWorkoutExercise('${ex.id}')">×</button>` : ''}
               <div class="ex-progress">${done}/${total}</div>
               <button class="exercise-expand-btn" onclick="toggleExercisePanel('${ex.id}')">${isExpanded ? '-' : '+'}</button>
             </div>
           </div>
-          ${exerciseProgressionHtml(ex)}
+          ${!isFreeWorkout() || hasPerformance ? exerciseProgressionHtml(ex) : ''}
           ${showPerformance ? lastExerciseComparisonHtml(ex, d.series) : ''}
           <div class="series-table">
             <div class="col-headers ${isTime ? 'time-row' : ''}">
@@ -7932,12 +8125,14 @@ function renderActiveExercises(){
             </div>
             ${d.series.map((s,i)=>{
               const seriesKey = `${ex.id}-${i}`;
+              const emptySeries = !!s.empty;
+              const timeValue = +(s.duration ?? s.reps ?? 0) || 0;
               const rowClasses = ['series-row', isTime ? 'time-row' : '', s.done ? 'done-row' : '', lastCompletedSeriesKey === seriesKey ? 'just-completed' : ''].filter(Boolean).join(' ');
               return `
                 <div class="${rowClasses}">
                   <div class="series-label">${i+1}</div>
-                  ${isTime ? `<input class="series-input" type="text" inputmode="numeric" maxlength="5" value="${formatSeconds(s.duration ?? s.reps ?? 60)}" placeholder="mm:ss" oninput="handleTimeInputTyping(this)" onchange="updateSeriesTime('${ex.id}',${i},this.value)">` : `<input class="series-input" type="number" min="0" step="1" value="${s.reps}" placeholder="reps" onchange="updateSeries('${ex.id}',${i},'reps',this.value)">`}
-                  ${isTime ? `<button id="tbtn-${ex.id}-${i}" class="timer-btn" onclick="toggleSeriesTimer('${ex.id}',${i})">${activeTimers[seriesKey] ? '⏸' : '▶'} ${formatSeconds(s.remaining ?? s.duration ?? s.reps ?? 60)}</button>` : `<input class="series-input" type="number" min="0" step="0.5" value="${showW ? s.weight : ''}" placeholder="${showW ? 'kg' : ''}" ${!showW ? 'disabled' : ''} onchange="updateSeries('${ex.id}',${i},'weight',this.value)">`}
+                  ${isTime ? `<input class="series-input" type="text" inputmode="numeric" maxlength="5" value="${emptySeries ? '' : formatSeconds(timeValue)}" placeholder="mm:ss" oninput="handleTimeInputTyping(this)" onchange="updateSeriesTime('${ex.id}',${i},this.value)">` : `<input class="series-input" type="number" min="0" step="1" value="${emptySeries ? '' : (s.reps ?? '')}" placeholder="reps" onchange="updateSeries('${ex.id}',${i},'reps',this.value)">`}
+                  ${isTime ? `<button id="tbtn-${ex.id}-${i}" class="timer-btn" ${timeValue > 0 ? '' : 'disabled'} onclick="toggleSeriesTimer('${ex.id}',${i})">${timeValue > 0 ? `${activeTimers[seriesKey] ? '⏸' : '▶'} ${formatSeconds(s.remaining ?? timeValue)}` : 'Añade tiempo'}</button>` : `<input class="series-input" type="number" min="0" step="0.5" value="${showW && !emptySeries ? (s.weight ?? '') : ''}" placeholder="${showW ? 'kg' : ''}" ${!showW ? 'disabled' : ''} onchange="updateSeries('${ex.id}',${i},'weight',this.value)">`}
                   <button class="series-tick ${s.done?'done':''}" onclick="tickSeries('${ex.id}',${i})">${s.done?'✓':'○'}</button>
                 </div>
               `;
@@ -7947,13 +8142,17 @@ function renderActiveExercises(){
         </div>
       `;
     }).join('');
+    const emptyState = isFreeWorkout() && !exerciseCardsHtml
+      ? '<div class="free-exercise-empty">Todavía no hay ejercicios. Elige uno arriba para crear su primera serie vacía.</div>'
+      : '';
+    activeExercises.innerHTML = freeWorkoutBuilderHtml() + exerciseCardsHtml + emptyState;
   }
   const pending = getCurrentPendingSeries();
   const dock = document.getElementById('activeQuickActions');
   if(dock){
     dock.innerHTML = `
       <button class="dock-btn primary" ${pending ? '' : 'disabled'} onclick="markCurrentSeries()">${pending ? 'Marcar serie' : 'Sin pendientes'}</button>
-      <button class="dock-btn" onclick="jumpToNextExercise()">Siguiente</button>
+      <button class="dock-btn" ${exerciseStats.length ? '' : 'disabled'} onclick="jumpToNextExercise()">Siguiente</button>
       <button class="dock-btn done" onclick="askFinishWorkout()">Finalizar</button>
     `;
   }
@@ -8027,6 +8226,7 @@ function goToGrid(){
     clearActiveWorkout();
     currentRoutineId = null;
     workoutData = {};
+    freeWorkoutExercises = [];
     closeFocusTimer();
     releaseWorkoutWakeLock();
     document.querySelector('header')?.classList.remove('workout-mode');
@@ -8038,8 +8238,25 @@ function sessionFeedbackHtml(entry){
   const note = String(entry?.note || '').trim();
   return note ? `<div class="session-feedback"><div class="session-feedback-note">${escapeHtml(note)}</div></div>` : '';
 }
+function workoutSeriesForLog(exercise){
+  const seriesList = workoutData[exercise.id]?.series || [];
+  if(!isFreeWorkout()) return seriesList.map(series => ({...series}));
+  return seriesList.map(series => {
+    const { empty, ...savedSeries } = series;
+    if(exercise.type === 'time'){
+      const duration = +(savedSeries.duration ?? savedSeries.reps ?? 0) || 0;
+      const remaining = Number.isFinite(+savedSeries.remaining) ? +savedSeries.remaining : duration;
+      return { ...savedSeries, reps:duration, duration, remaining, weight:0 };
+    }
+    return {
+      ...savedSeries,
+      reps:+savedSeries.reps || 0,
+      weight:exercise.type === 'weight' ? (+savedSeries.weight || 0) : 0
+    };
+  });
+}
 function finishWorkout(){
-  const r = state.routines.find(x=>x.id===currentRoutineId);
+  const r = getCurrentWorkoutRoutine();
   if(!r) return;
   const completedExercises = r.exercises.filter(ex=>Array.isArray(workoutData[ex.id]?.series));
   if(!completedExercises.length){
@@ -8065,7 +8282,7 @@ function finishWorkout(){
     duration: elapsed,
     durationLabel: mins > 0 ? `${mins} min` : `${elapsed}s`,
     ...(finishNote ? { note:finishNote } : {}),
-    exercises: completedExercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutData[ex.id].series.map(s=>({...s})) })),
+    exercises: completedExercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutSeriesForLog(ex) })),
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
   state.workoutLog.push(entry);
@@ -8074,6 +8291,7 @@ function finishWorkout(){
   showToast(`✓ Guardado · ${entry.durationLabel}`);
   currentRoutineId = null;
   workoutData = {};
+  freeWorkoutExercises = [];
   document.querySelector('header')?.classList.remove('workout-mode');
   updateHeaderWorkoutBadge();
   renderWorkoutGrid();
@@ -8090,6 +8308,7 @@ function discardWorkout(){
   clearActiveWorkout();
   currentRoutineId = null;
   workoutData = {};
+  freeWorkoutExercises = [];
   document.querySelector('header')?.classList.remove('workout-mode');
   updateHeaderWorkoutBadge();
   renderWorkoutGrid();
