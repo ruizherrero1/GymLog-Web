@@ -804,7 +804,6 @@
   }
   function decorateRoutineTimerBadges(){
     const routineCards = document.querySelectorAll('#routinesList .rt-block');
-    const workoutCards = document.querySelectorAll('#workoutRoutineGrid .routine-card');
     state.routines.forEach((routine,index)=>{
       const text = routineTimerBadgeText(routine);
       if(!text) return;
@@ -812,7 +811,8 @@
       if(routineBadges && !routineBadges.querySelector('.gym-routine-timer-badge')){
         routineBadges.insertAdjacentHTML('beforeend','<span class="rt-badge gym-routine-timer-badge">' + escapeHtml(text) + '</span>');
       }
-      const workoutBadges = workoutCards[index]?.querySelector('.r-badges');
+      const workoutCard = Array.from(document.querySelectorAll('#workoutRoutineGrid [data-routine-id]')).find(card=>card.dataset.routineId === routine.id);
+      const workoutBadges = workoutCard?.querySelector('.r-badges');
       if(workoutBadges && !workoutBadges.querySelector('.gym-routine-timer-badge')){
         workoutBadges.insertAdjacentHTML('beforeend','<span class="r-badge gym-routine-timer-badge">' + escapeHtml(text) + '</span>');
       }

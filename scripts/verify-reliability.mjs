@@ -37,7 +37,7 @@ check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del ca
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
 check(serviceWorker.includes('gymlog-web-v13-20260723-progression-health'), 'La progresion y Health deben invalidar la cache PWA anterior.');
 check(reliability.includes('let cloudStatusHideTimer = null'), 'El aviso de nube debe controlar su ocultacion automatica.');
-check(reliability.includes("kind === 'ok' ? 2200 : (kind === 'pending' ? 0 : 7000)"), 'Los estados de nube deben desaparecer segun su importancia.');
+check(reliability.includes("kind === 'ok' ? 2200 : (kind === 'pending' ? 2500 : 7000)"), 'Los estados de nube deben desaparecer segun su importancia.');
 check(reliability.includes('.gym-cloud-status.visible{opacity:.88'), 'El aviso de nube debe mostrarse como indicador temporal.');
 check(reliability.includes('pointer-events:none'), 'El aviso de nube nunca debe bloquear botones.');
 check(reliability.includes('top:calc(8px + env(safe-area-inset-top,0px))'), 'El aviso de nube debe ocupar una esquina segura superior.');
@@ -45,6 +45,13 @@ check(reliability.includes('bottom:auto!important'), 'El indicador superior debe
 check(html.includes('class="preview-exercise-row"'), 'El resumen previo debe mostrar los ejercicios en filas.');
 check(html.includes('data-search-provider="google"'), 'Cada ejercicio debe ofrecer una busqueda en Google.');
 check(html.includes('data-search-provider="youtube"'), 'Cada ejercicio debe ofrecer una busqueda en YouTube.');
+check(html.includes("const FREE_WORKOUT_ID = 'gymlog-free-workout'"), 'El modo Entreno libre debe tener un identificador estable.');
+check(html.includes('function startFreeWorkout()'), 'Entrenar debe permitir iniciar una sesion sin rutina.');
+check(html.includes('freeWorkoutExercises'), 'Los ejercicios libres deben conservarse al recuperar la sesion activa.');
+check(html.includes('function addFreeWorkoutExercise()'), 'El Entreno libre debe permitir anadir ejercicios durante la sesion.');
+check(html.includes('createEmptyFreeSeries(type)'), 'Cada ejercicio libre debe comenzar con una serie vacia.');
+check(html.includes('changeFreeExerciseType'), 'El ejercicio libre debe permitir elegir peso, corporal o tiempo.');
+check(html.includes('freeWorkoutBuilderHtml() + exerciseCardsHtml'), 'El selector de ejercicios debe permanecer disponible durante el entreno libre.');
 check(html.includes('https://www.google.com/search?q=${query}'), 'Google debe recibir el nombre exacto del ejercicio.');
 check(html.includes('https://www.youtube.com/results?search_query=${query}'), 'YouTube debe recibir el nombre exacto del ejercicio.');
 check(occurrences(html, 'target="_blank" rel="noopener noreferrer"') >= 2, 'Las busquedas deben abrirse de forma aislada y segura.');
