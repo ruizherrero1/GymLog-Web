@@ -47,6 +47,8 @@ check(html.includes('data-search-provider="google"'), 'Cada ejercicio debe ofrec
 check(html.includes('data-search-provider="youtube"'), 'Cada ejercicio debe ofrecer una busqueda en YouTube.');
 check(html.includes("const FREE_WORKOUT_ID = 'gymlog-free-workout'"), 'El modo Entreno libre debe tener un identificador estable.');
 check(html.includes('function startFreeWorkout()'), 'Entrenar debe permitir iniciar una sesion sin rutina.');
+check(html.includes('function workoutGridCardsHtml()'), 'La cuadricula debe compartir un unico render para conservar Entreno libre.');
+check(occurrences(html, 'grid.innerHTML = workoutGridCardsHtml();') >= 2, 'Entreno libre debe sobrevivir al refresco posterior de la cuadricula.');
 check(html.includes('freeWorkoutExercises'), 'Los ejercicios libres deben conservarse al recuperar la sesion activa.');
 check(html.includes('function addFreeWorkoutExercise()'), 'El Entreno libre debe permitir anadir ejercicios durante la sesion.');
 check(html.includes('createEmptyFreeSeries(type)'), 'Cada ejercicio libre debe comenzar con una serie vacia.');
