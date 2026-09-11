@@ -5551,12 +5551,7 @@ function getRoutineWorkoutMeta(routine){
   };
 }
 
-function renderWorkoutGrid(){
-  document.getElementById('phase-grid').style.display='block';
-  document.getElementById('phase-preview').style.display='none';
-  document.getElementById('phase-active').style.display='none';
-
-  const grid = document.getElementById('workoutRoutineGrid');
+function workoutGridCardsHtml(){
   const accent = getThemeAccent();
   const freeCard = `
     <div class="routine-card routine-card-compact free-workout-card" onclick="startFreeWorkout()">
@@ -5596,7 +5591,16 @@ function renderWorkoutGrid(){
     `;
   }).join('');
   const emptyHint = state.routines.length ? '' : '<div class="empty" style="grid-column:1/-1">No tienes rutinas aún. Puedes usar Entreno libre o crear una en la pestaña Rutinas.</div>';
-  grid.innerHTML = freeCard + routineCards + emptyHint;
+  return freeCard + routineCards + emptyHint;
+}
+
+function renderWorkoutGrid(){
+  document.getElementById('phase-grid').style.display='block';
+  document.getElementById('phase-preview').style.display='none';
+  document.getElementById('phase-active').style.display='none';
+
+  const grid = document.getElementById('workoutRoutineGrid');
+  grid.innerHTML = workoutGridCardsHtml();
 }
 
 function showPreview(id){
@@ -6317,34 +6321,7 @@ function renderRoutinesTab(){
 function refreshWorkoutGridCards(){
   const grid = document.getElementById('workoutRoutineGrid');
   if(!grid) return;
-  if(!state.routines.length){
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No tienes rutinas aún. Crea una en la pestaña Rutinas.</div>';
-    return;
-  }
-  const accent = getThemeAccent();
-  const accentSoft = rgbaFromHex(accent, 0.16);
-  const accentBorder = rgbaFromHex(accent, 0.30);
-  const accentText = rgbaFromHex(accent, 0.92);
-  grid.innerHTML = state.routines.map(r=>{
-    const totalSeries = r.exercises.reduce((a,e)=>a + (+e.defaultSeries || 0), 0);
-    const workoutMeta = getRoutineWorkoutMeta(r);
-    return `
-      <div class="routine-card routine-card-compact" onclick="showPreview('${r.id}')">
-        <div class="routine-card-main">
-          <div class="r-name">${escapeHtml(r.name)}</div>
-          <div class="r-badges">
-            <span class="r-badge">${r.exercises.length} ejercicios</span>
-            <span class="r-badge">${totalSeries} series</span>
-            <span class="r-badge muted">${workoutMeta.approxMinutes} min</span>
-          </div>
-        </div>
-        <div class="r-footer r-footer-inline">
-          <div class="r-last">Última vez: ${formatWorkoutDateLabel(workoutMeta.lastDate)}</div>
-          <button class="r-start-btn" style="background:${accentSoft}; border-color:${accentBorder}; color:${accentText};" onclick="event.stopPropagation(); startWorkout('${r.id}')">Empezar</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  grid.innerHTML = workoutGridCardsHtml();
 }
 
 function openAddRoutine(){
