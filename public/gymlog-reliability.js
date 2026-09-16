@@ -12,6 +12,7 @@
   let cloudSaveInFlight = null;
   let cloudSaveQueued = false;
   let localSequence = 0;
+  let pendingRecoveredIntoState = false;
   let nextSnapshotReason = null;
   let recoveryRunning = false;
 
@@ -86,7 +87,7 @@
         sequence:localSequence,
         revision:cloudRevision,
         savedAt:new Date().toISOString(),
-        state
+        storageKey:STORAGE_KEY
       }));
     }catch(error){
       console.warn('No se pudo guardar la cola local de nube.', error);
@@ -96,10 +97,36 @@
   function readPendingState(){
     try{
       const pending = JSON.parse(localStorage.getItem(PENDING_STATE_KEY) || 'null');
-      if(!pending?.state || typeof pending.state !== 'object') return null;
+      if(!pending || typeof pending !== 'object') return null;
+      const pendingState = pending.state && typeof pending.state === 'object'
+        ? pending.state
+        : JSON.parse(localStorage.getItem(pending.storageKey || STORAGE_KEY) || 'null');
+      if(!pendingState || typeof pendingState !== 'object') return null;
       localSequence = Math.max(localSequence, Number(pending.sequence) || 0);
-      return pending;
+      return { ...pending, state:pendingState };
     }catch{
+      return null;
+    }
+  }
+
+  function compactEquivalentPendingState(){
+    try{
+      const raw = localStorage.getItem(PENDING_STATE_KEY);
+      if(!raw) return null;
+      const pending = JSON.parse(raw);
+      if(!pending?.state || typeof pending.state !== 'object') return null;
+      const storedState = localStorage.getItem(STORAGE_KEY);
+      const isRedundant = !!storedState && JSON.stringify(pending.state) === storedState;
+      if(!isRedundant && !pendingRecoveredIntoState) return null;
+      localStorage.setItem(PENDING_STATE_KEY, JSON.stringify({
+        sequence:Number(pending.sequence) || localSequence,
+        revision:Number(pending.revision) || 0,
+        savedAt:pending.savedAt || new Date().toISOString(),
+        storageKey:STORAGE_KEY
+      }));
+      return raw;
+    }catch(error){
+      console.warn('No se pudo compactar una cola redundante de nube.', error);
       return null;
     }
   }
@@ -170,8 +197,18 @@
 
   const baseSave = save;
   save = function(){
+    const pendingBackup = compactEquivalentPendingState();
+    const savedLocally = baseSave.apply(this, arguments);
+    if(savedLocally === false){
+      if(pendingBackup){
+        try{ localStorage.setItem(PENDING_STATE_KEY, pendingBackup); }catch{}
+      }
+      showToast('Almacenamiento lleno. Tu cambio no se aplicó; exporta una copia desde Ajustes.');
+      return false;
+    }
+    pendingRecoveredIntoState = false;
     recordPendingState();
-    return baseSave.apply(this, arguments);
+    return true;
   };
 
   loadUserCloudState = async function(){
@@ -190,9 +227,10 @@
         cloudRevision = Number(data.revision) || 1;
         cloudUpdatedAt = data.updated_at || null;
         if(pending?.state){
-          preserveRecoveryState('remote-before-merge', data.data);
-          state = pending.revision === cloudRevision ? clone(pending.state) : mergeStates(data.data, pending.state);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        preserveRecoveryState('remote-before-merge', data.data);
+        state = pending.revision === cloudRevision ? clone(pending.state) : mergeStates(data.data, pending.state);
+          pendingRecoveredIntoState = true;
+          if(save() === false) throw new Error('No hay espacio local suficiente para recuperar los cambios pendientes.');
           refreshCloudUi();
           setCloudStatus('pending', 'Nube: recuperando cambios');
           await saveUserCloudState({ immediate:true });
@@ -310,7 +348,7 @@
   if(baseFinishWorkout){
     finishWorkout = function(){
       const result = baseFinishWorkout.apply(this, arguments);
-      Promise.resolve(result).finally(() => saveUserCloudState({ immediate:true, silent:true }));
+      if(result) Promise.resolve(result).finally(() => saveUserCloudState({ immediate:true, silent:true }));
       return result;
     };
   }
@@ -766,11 +804,13 @@
   const baseFinishWorkoutMobile = finishWorkout;
   finishWorkout = function(){
     completeStoppedTimedRoutine();
-    cancelManualRestTimer(false);
-    clearWorkoutAction();
-    document.body.classList.remove('gym-workout-tools-active');
     const result = baseFinishWorkoutMobile.apply(this,arguments);
-    clearRoutineTimerState();
+    if(result){
+      cancelManualRestTimer(false);
+      clearWorkoutAction();
+      document.body.classList.remove('gym-workout-tools-active');
+      clearRoutineTimerState();
+    }
     return result;
   };
   const baseDiscardWorkoutMobile = discardWorkout;

@@ -316,7 +316,7 @@
   .btn-danger { background: var(--card); color: var(--accent2); border: 1px solid var(--border); }
   .btn-danger:hover { background: #2a1510; border-color: var(--accent2); }
 
-  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--done); color: #000; padding: 10px 22px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 300; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); box-sizing: border-box; width: max-content; max-width: calc(100vw - 24px); background: var(--done); color: #000; padding: 10px 22px; border-radius: 30px; font-weight: 600; font-size: 14px; line-height: 1.35; text-align: center; z-index: 300; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: normal; }
   .toast.show { opacity: 1; }
   .empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
 
@@ -5223,11 +5223,17 @@ function loadState(){
 
 let state = loadState();
 function save(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(error){
+    console.error('No se pudo guardar el estado local de GymLog.', error);
+    return false;
+  }
   if(gymLogCloudSession && gymLogCloudClient){
     clearTimeout(gymLogSyncTimer);
     gymLogSyncTimer = setTimeout(()=>saveUserCloudState(), 2000);
   }
+  return true;
 }
 function pruneDeletedWorkoutLog(){
   const now = Date.now();
@@ -5476,10 +5482,13 @@ function restoreActiveWorkout(){
     document.getElementById('phase-preview').style.display='none';
     document.getElementById('phase-active').style.display='block';
     document.getElementById('activeName').textContent = routine.name;
-    const restoredSeconds = snapshot.startedAt
-      ? Math.floor((Date.now() - snapshot.startedAt) / 1000)
+    const restoredStartedAt = Number(snapshot.startedAt);
+    const hasExactStartedAt = Number.isFinite(restoredStartedAt) && restoredStartedAt > 0 && restoredStartedAt <= Date.now() + 60000;
+    const restoredSeconds = hasExactStartedAt
+      ? Math.floor((Date.now() - restoredStartedAt) / 1000)
       : snapshot.timerSeconds;
     startTimer(restoredSeconds);
+    if(hasExactStartedAt) timerStart = restoredStartedAt;
     requestWorkoutWakeLock();
     renderActiveExercises();
     showToast('Sesion activa recuperada');
@@ -7173,6 +7182,7 @@ function saveEditedSession(){
   if(!editingLogId || !editingLogDraft) return;
   const idx = state.workoutLog.findIndex(entry => entry.id === editingLogId);
   if(idx < 0) return;
+  const previous = structuredClone(state.workoutLog[idx]);
   const updated = normalizeEditedSession(editingLogDraft, editingLogTime);
   const health = healthForLog(updated);
   updated.health = {
@@ -7184,7 +7194,12 @@ function saveEditedSession(){
     autoSyncRequested: true
   };
   state.workoutLog[idx] = updated;
-  save();
+  if(save() === false){
+    const rollbackIndex = state.workoutLog.findIndex(entry => entry.id === editingLogId);
+    if(rollbackIndex >= 0) state.workoutLog[rollbackIndex] = previous;
+    showToast('No se pudo guardar la edición. La sesión original sigue intacta.');
+    return false;
+  }
   closeModal('overlayEditSession', true);
   editingLogId = null;
   editingLogDraft = null;
@@ -7196,6 +7211,7 @@ function saveEditedSession(){
   if(gymLogGoogleConnected && typeof syncWorkoutToHealth === 'function'){
     setTimeout(()=>syncWorkoutToHealth(updated.id, { backup:true, silent:true }), 0);
   }
+  return true;
 }
 function deleteLog(id, dateToReopen){
   if(!confirm('¿Eliminar esta sesión? Se guardará 30 días en la papelera.')) return;
@@ -8223,26 +8239,51 @@ function workoutSeriesForLog(exercise){
     };
   });
 }
+function currentWorkoutElapsedSeconds(){
+  const intervalSeconds = Math.max(0, Math.floor(+timerSeconds || 0));
+  const wallClockSeconds = timerStart
+    ? Math.max(0, Math.floor((Date.now() - timerStart) / 1000))
+    : 0;
+  return Math.max(intervalSeconds, wallClockSeconds);
+}
+function leaveCompletedWorkout(){
+  stopAllSeriesTimers();
+  closeFocusTimer();
+  releaseWorkoutWakeLock();
+  stopTimer(true);
+  clearActiveWorkout();
+  currentRoutineId = null;
+  workoutData = {};
+  freeWorkoutExercises = [];
+  document.querySelector('header')?.classList.remove('workout-mode');
+  updateHeaderWorkoutBadge();
+  renderWorkoutGrid();
+}
 function finishWorkout(){
   const r = getCurrentWorkoutRoutine();
-  if(!r) return;
+  if(!r) return false;
   const completedExercises = r.exercises.filter(ex=>Array.isArray(workoutData[ex.id]?.series));
   if(!completedExercises.length){
     persistActiveWorkout();
     showToast('No se pudo finalizar. Tu progreso sigue guardado.');
-    return;
+    return false;
   }
   const finishNote = String(document.getElementById('finishNote')?.value || '').trim().slice(0,240);
-  stopAllSeriesTimers();
-  closeFocusTimer();
-  releaseWorkoutWakeLock();
-  const completedAt = new Date().toISOString();
-  const startedAt = new Date(timerStart || (Date.now() - ((timerSeconds || 0) * 1000))).toISOString();
-  const elapsed = stopTimer();
+  const completedAtMs = Date.now();
+  const elapsed = currentWorkoutElapsedSeconds();
+  const startedAtMs = timerStart || (completedAtMs - (elapsed * 1000));
+  const completedAt = new Date(completedAtMs).toISOString();
+  const startedAt = new Date(startedAtMs).toISOString();
+  const alreadySaved = state.workoutLog.find(log => log.routineId === currentRoutineId && log.startedAt === startedAt);
+  if(alreadySaved){
+    leaveCompletedWorkout();
+    showToast('✓ Este entreno ya estaba guardado');
+    return alreadySaved;
+  }
   const mins = Math.floor(elapsed/60);
   const entry = {
     id: uid('log'),
-    date: isoDate(new Date()),
+    date: isoDate(new Date(completedAtMs)),
     startedAt,
     completedAt,
     routineId: currentRoutineId,
@@ -8254,18 +8295,19 @@ function finishWorkout(){
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
   state.workoutLog.push(entry);
-  save();
-  clearActiveWorkout();
+  if(save() === false){
+    const failedIndex = state.workoutLog.findIndex(log => log.id === entry.id);
+    if(failedIndex >= 0) state.workoutLog.splice(failedIndex, 1);
+    persistActiveWorkout();
+    showToast('No se pudo guardar por falta de espacio. El entreno sigue activo.');
+    return false;
+  }
+  leaveCompletedWorkout();
   showToast(`✓ Guardado · ${entry.durationLabel}`);
-  currentRoutineId = null;
-  workoutData = {};
-  freeWorkoutExercises = [];
-  document.querySelector('header')?.classList.remove('workout-mode');
-  updateHeaderWorkoutBadge();
-  renderWorkoutGrid();
   if(typeof syncWorkoutToHealth === 'function'){
     syncWorkoutToHealth(entry.id, { backup:true, silent:true });
   }
+  return entry;
 }
 function discardWorkout(){
   if(!confirm('¿Descartar este entrenamiento?')) return;
