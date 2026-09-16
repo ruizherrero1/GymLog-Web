@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'gymlog-web-v13-20260723-progression-health';
+const CACHE_VERSION = 'gymlog-web-v14-20260916-storage-recovery';
 const APP_SHELL = [
   '/',
   '/gymlog-classic.html',
