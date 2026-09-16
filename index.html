@@ -8294,11 +8294,19 @@ function finishWorkout(){
     exercises: completedExercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutSeriesForLog(ex) })),
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
+  const activeWorkoutBackup = localStorage.getItem(ACTIVE_WORKOUT_KEY);
+  clearActiveWorkout();
   state.workoutLog.push(entry);
   if(save() === false){
     const failedIndex = state.workoutLog.findIndex(log => log.id === entry.id);
     if(failedIndex >= 0) state.workoutLog.splice(failedIndex, 1);
-    persistActiveWorkout();
+    try{
+      if(activeWorkoutBackup) localStorage.setItem(ACTIVE_WORKOUT_KEY, activeWorkoutBackup);
+      else persistActiveWorkout();
+    }catch(error){
+      console.warn('No se pudo restaurar la copia exacta de la sesion activa.', error);
+      persistActiveWorkout();
+    }
     showToast('No se pudo guardar por falta de espacio. El entreno sigue activo.');
     return false;
   }
@@ -10328,9 +10336,11 @@ document.getElementById('focusTimerOverlay')?.addEventListener('click', (event)=
 initTheme();
 if('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(error => {
-      console.warn('No se pudo registrar el service worker.', error);
-    });
+    navigator.serviceWorker.register('./service-worker.js', { updateViaCache:'none' })
+      .then(registration => registration.update())
+      .catch(error => {
+        console.warn('No se pudo registrar el service worker.', error);
+      });
   });
 }
 document.getElementById('importFile')?.addEventListener('change', (e)=>{
@@ -10407,5 +10417,5 @@ document.addEventListener('touchend', e => {
   </div>
 </div>
 <script src="/gymlog-note-templates.js"></script>
-<script src="/gymlog-reliability.js"></script>
+<script src="/gymlog-reliability.js?v=20260916-storage-recovery"></script>
 </body></html>
