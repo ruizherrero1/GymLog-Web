@@ -109,25 +109,43 @@
     }
   }
 
-  function compactEquivalentPendingState(){
+  function compactLegacyPendingState(){
     try{
       const raw = localStorage.getItem(PENDING_STATE_KEY);
-      if(!raw) return null;
+      if(!raw) return false;
       const pending = JSON.parse(raw);
-      if(!pending?.state || typeof pending.state !== 'object') return null;
-      const storedState = localStorage.getItem(STORAGE_KEY);
-      const isRedundant = !!storedState && JSON.stringify(pending.state) === storedState;
-      if(!isRedundant && !pendingRecoveredIntoState) return null;
+      if(!pending?.state || typeof pending.state !== 'object') return false;
+      const storedStateRaw = localStorage.getItem(STORAGE_KEY);
+      if(!storedStateRaw) return false;
+      const storedState = JSON.parse(storedStateRaw);
+      if(!storedState || typeof storedState !== 'object') return false;
+      // Las versiones antiguas copiaban aquí el mismo estado justo después de
+      // guardarlo. La clave principal es la copia durable y más reciente, así
+      // que la referencia ligera conserva la cola sin duplicar el historial.
       localStorage.setItem(PENDING_STATE_KEY, JSON.stringify({
         sequence:Number(pending.sequence) || localSequence,
         revision:Number(pending.revision) || 0,
         savedAt:pending.savedAt || new Date().toISOString(),
         storageKey:STORAGE_KEY
       }));
-      return raw;
+      return true;
     }catch(error){
-      console.warn('No se pudo compactar una cola redundante de nube.', error);
-      return null;
+      console.warn('No se pudo compactar una cola antigua de nube.', error);
+      return false;
+    }
+  }
+
+  function removeOldestRecoverySnapshot(){
+    try{
+      const recoveryKeys = Object.keys(localStorage)
+        .filter(item => item.startsWith(RECOVERY_PREFIX))
+        .sort();
+      if(recoveryKeys.length <= 1) return false;
+      localStorage.removeItem(recoveryKeys[0]);
+      return true;
+    }catch(error){
+      console.warn('No se pudo liberar una copia de recuperacion antigua.', error);
+      return false;
     }
   }
 
@@ -197,12 +215,12 @@
 
   const baseSave = save;
   save = function(){
-    const pendingBackup = compactEquivalentPendingState();
-    const savedLocally = baseSave.apply(this, arguments);
+    compactLegacyPendingState();
+    let savedLocally = baseSave.apply(this, arguments);
+    while(savedLocally === false && removeOldestRecoverySnapshot()){
+      savedLocally = baseSave.apply(this, arguments);
+    }
     if(savedLocally === false){
-      if(pendingBackup){
-        try{ localStorage.setItem(PENDING_STATE_KEY, pendingBackup); }catch{}
-      }
       showToast('Almacenamiento lleno. Tu cambio no se aplicó; exporta una copia desde Ajustes.');
       return false;
     }
