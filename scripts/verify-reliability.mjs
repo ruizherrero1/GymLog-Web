@@ -35,7 +35,7 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v13-20260723-progression-health'), 'La progresion y Health deben invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v14-20260916-storage-recovery'), 'La recuperacion de almacenamiento debe invalidar la cache PWA anterior.');
 check(reliability.includes('let cloudStatusHideTimer = null'), 'El aviso de nube debe controlar su ocultacion automatica.');
 check(reliability.includes("kind === 'ok' ? 2200 : (kind === 'pending' ? 2500 : 7000)"), 'Los estados de nube deben desaparecer segun su importancia.');
 check(reliability.includes('.gym-cloud-status.visible{opacity:.88'), 'El aviso de nube debe mostrarse como indicador temporal.');
