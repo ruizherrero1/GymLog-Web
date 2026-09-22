@@ -374,9 +374,10 @@
     font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
     color: var(--accent2); margin-bottom: 4px;
   }
-  .active-title-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .active-title-row { display:flex; align-items:center; gap:10px; flex-wrap:nowrap; }
   .active-title-row h2 {
-    margin: 0; font-family:'Bebas Neue',sans-serif; font-size: 28px; letter-spacing: 1px; line-height: 1;
+    min-width:0; margin: 0; font-family:'Bebas Neue',sans-serif; font-size: 28px; letter-spacing: 1px; line-height: 1;
+    overflow-wrap:anywhere;
   }
   .active-chip {
     display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px;
@@ -384,6 +385,11 @@
     font-size: 12px; font-weight: 700;
   }
   .active-chip strong { color: var(--text); font-size: 13px; }
+  #activeSessionPill {
+    flex:0 0 auto; min-width:76px; justify-content:center; white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  #activeExerciseCount { flex:0 0 auto; white-space:nowrap; }
   .active-summary-card {
     position: relative; overflow: hidden; padding: 18px; border-radius: 20px;
     background: linear-gradient(145deg, rgba(39,52,73,.98), rgba(17,24,39,.96));
@@ -5019,8 +5025,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-09-16T10:51:25.617Z",
-      "updatedAt": "2026-09-16T10:51:25.617Z"
+      "createdAt": "2026-09-22T10:53:49.799Z",
+      "updatedAt": "2026-09-22T10:53:49.799Z"
     }
   ],
   "workoutLog": [],
@@ -5321,19 +5327,27 @@ function updateHeaderWorkoutBadge(){
   titleEl.textContent = name;
   timeEl.textContent = `${m}:${s}`;
 }
+function updateActiveSessionPill(){
+  const sessionPill = document.getElementById('activeSessionPill');
+  if(!sessionPill) return;
+  let value = sessionPill.querySelector('strong');
+  if(!value){
+    sessionPill.innerHTML = '<span aria-hidden="true">⏱</span><strong></strong>';
+    value = sessionPill.querySelector('strong');
+  }
+  if(value) value.textContent = formatSeconds(timerSeconds || 0);
+}
 function startTimer(initialSeconds=0){
   if(timerInterval){ clearInterval(timerInterval); timerInterval=null; }
   timerSeconds = Math.max(0, Math.floor(+initialSeconds || 0));
   timerStart = Date.now() - (timerSeconds * 1000);
   updateHeaderWorkoutBadge();
-  const sessionPill = document.getElementById('activeSessionPill');
-  if(sessionPill) sessionPill.innerHTML = `⏱ <strong>${formatSeconds(timerSeconds)}</strong>`;
+  updateActiveSessionPill();
   timerInterval = setInterval(()=>{
     timerSeconds = Math.floor((Date.now()-timerStart)/1000);
     updateHeaderWorkoutBadge();
-    const sessionPillLoop = document.getElementById('activeSessionPill');
-    if(sessionPillLoop) sessionPillLoop.innerHTML = `⏱ <strong>${formatSeconds(timerSeconds)}</strong>`;
-    persistActiveWorkout();
+    updateActiveSessionPill();
+    if(timerSeconds % 15 === 0) persistActiveWorkout();
   },1000);
 }
 function stopTimer(silent=false){
@@ -5437,7 +5451,16 @@ function getCurrentWorkoutRoutine(){
       exercises: freeWorkoutExercises
     };
   }
-  return state.routines.find(routine => routine.id === currentRoutineId) || null;
+  const routine = state.routines.find(item => item.id === currentRoutineId);
+  if(!routine) return null;
+  return {
+    ...routine,
+    exercises: [...routine.exercises, ...freeWorkoutExercises]
+  };
+}
+
+function isTemporaryWorkoutExercise(exId){
+  return freeWorkoutExercises.some(exercise => exercise.id === exId);
 }
 
 function persistActiveWorkout(){
@@ -5453,6 +5476,7 @@ function persistActiveWorkout(){
     activeWorkoutListExpanded,
     activeExercisePanels,
     activePerformancePanels,
+    temporaryWorkoutExercises: freeWorkoutExercises,
     ...(isFreeWorkout() ? { freeWorkoutExercises } : {}),
     savedAt: Date.now()
   };
@@ -5473,15 +5497,18 @@ function restoreActiveWorkout(){
     if(!raw) return false;
     const snapshot = JSON.parse(raw);
     const restoringFreeWorkout = snapshot.routineId === FREE_WORKOUT_ID;
+    const restoredTemporaryExercises = Array.isArray(snapshot.temporaryWorkoutExercises)
+      ? snapshot.temporaryWorkoutExercises
+      : (Array.isArray(snapshot.freeWorkoutExercises) ? snapshot.freeWorkoutExercises : []);
     const routine = restoringFreeWorkout
-      ? { id:FREE_WORKOUT_ID, name:'Entreno libre', exercises:Array.isArray(snapshot.freeWorkoutExercises) ? snapshot.freeWorkoutExercises : [] }
+      ? { id:FREE_WORKOUT_ID, name:'Entreno libre', exercises:restoredTemporaryExercises }
       : state.routines.find(r => r.id === snapshot.routineId);
     if(!routine || !snapshot.workoutData){
       clearActiveWorkout();
       return false;
     }
     currentRoutineId = snapshot.routineId;
-    freeWorkoutExercises = restoringFreeWorkout ? routine.exercises : [];
+    freeWorkoutExercises = restoredTemporaryExercises;
     workoutData = snapshot.workoutData;
     activeWorkoutListExpanded = !!snapshot.activeWorkoutListExpanded;
     activeExercisePanels = snapshot.activeExercisePanels || {};
@@ -5923,13 +5950,13 @@ function startFreeWorkout(){
 }
 
 function freeWorkoutBuilderHtml(){
-  if(!isFreeWorkout()) return '';
+  if(!currentRoutineId) return '';
   return `
-    <section class="free-workout-builder" aria-label="Añadir ejercicio al entreno libre">
+    <section class="free-workout-builder" aria-label="Añadir ejercicio temporal al entrenamiento">
       <div class="free-workout-builder-head">
         <div>
-          <div class="free-workout-builder-title">Añadir ejercicio</div>
-          <div class="free-workout-builder-copy">Busca uno de la biblioteca o escribe un nombre propio. Cada ejercicio empieza con una serie vacía.</div>
+          <div class="free-workout-builder-title">Añadir ejercicio temporal</div>
+          <div class="free-workout-builder-copy">Se guardará en este entreno, pero no se añadirá a la rutina para próximas veces. Cada ejercicio empieza con una serie vacía.</div>
         </div>
       </div>
       <div class="free-workout-fields">
@@ -5951,7 +5978,7 @@ function updateFreeExerciseOptions(query){
 }
 
 function addFreeWorkoutExercise(){
-  if(!isFreeWorkout()) return;
+  if(!currentRoutineId) return;
   const input = document.getElementById('freeExerciseName');
   const typeInput = document.getElementById('freeExerciseType');
   const name = String(input?.value || '').trim().slice(0,100);
@@ -5961,7 +5988,7 @@ function addFreeWorkoutExercise(){
     input?.focus();
     return;
   }
-  if(freeWorkoutExercises.some(exercise => normalizeExerciseText(exercise.name) === normalizeExerciseText(name))){
+  if(getCurrentWorkoutRoutine()?.exercises.some(exercise => normalizeExerciseText(exercise.name) === normalizeExerciseText(name))){
     showToast('Ese ejercicio ya está añadido');
     input?.focus();
     return;
@@ -5989,7 +6016,7 @@ function addFreeWorkoutExercise(){
 }
 
 function changeFreeExerciseType(exId, nextType){
-  if(!isFreeWorkout() || !['weight','bodyweight','time'].includes(nextType)) return;
+  if(!currentRoutineId || !isTemporaryWorkoutExercise(exId) || !['weight','bodyweight','time'].includes(nextType)) return;
   const exercise = freeWorkoutExercises.find(item => item.id === exId);
   const series = workoutData[exId]?.series || [];
   if(!exercise || exercise.type === nextType) return;
@@ -6006,7 +6033,7 @@ function changeFreeExerciseType(exId, nextType){
 }
 
 function removeFreeWorkoutExercise(exId){
-  if(!isFreeWorkout()) return;
+  if(!currentRoutineId || !isTemporaryWorkoutExercise(exId)) return;
   const exercise = freeWorkoutExercises.find(item => item.id === exId);
   if(!exercise) return;
   const series = workoutData[exId]?.series || [];
@@ -8068,21 +8095,21 @@ function renderActiveExercises(){
       </div>
     `;
   }
-  const sessionPill = document.getElementById('activeSessionPill');
-  if(sessionPill) sessionPill.innerHTML = `⏱ <strong>${formatSeconds(timerSeconds || 0)}</strong>`;
+  updateActiveSessionPill();
   const exerciseCount = document.getElementById('activeExerciseCount');
   if(exerciseCount) exerciseCount.textContent = `${exerciseStats.length} ejercicios`;
   const activeExercises = document.getElementById('activeExercises');
   if(activeExercises){
     const exerciseCardsHtml = exerciseStats.map(item => {
       const { ex, d, done, total, allDone } = item;
+      const isTemporary = isTemporaryWorkoutExercise(ex.id);
       const showW = ex.type === 'weight';
       const isTime = ex.type === 'time';
       const isExpanded = ex.id === currentExerciseId || !!activeExercisePanels[ex.id];
       const showPerformance = !!activePerformancePanels[ex.id];
       const hasPerformance = !!getLastExercisePerformance(ex.name);
       const classes = ['exercise-block'];
-      if(isFreeWorkout()) classes.push('free-exercise-block');
+      if(isTemporary) classes.push('free-exercise-block');
       if(ex.id === currentExerciseId) classes.push('current-ex');
       else if(allDone) classes.push('done-ex');
       else classes.push('future-ex');
@@ -8095,19 +8122,19 @@ function renderActiveExercises(){
               <div class="ex-name">${escapeHtml(ex.name)}</div>
             </div>
             <div class="exercise-head-actions">
-              ${isFreeWorkout() ? `<select class="free-type-select" aria-label="Tipo de serie de ${escapeAttribute(ex.name)}" onclick="event.stopPropagation()" onchange="changeFreeExerciseType('${ex.id}',this.value)">
+              ${isTemporary ? `<select class="free-type-select" aria-label="Tipo de serie de ${escapeAttribute(ex.name)}" onclick="event.stopPropagation()" onchange="changeFreeExerciseType('${ex.id}',this.value)">
                 <option value="weight" ${ex.type === 'weight' ? 'selected' : ''}>Peso</option>
                 <option value="bodyweight" ${ex.type === 'bodyweight' ? 'selected' : ''}>Corporal</option>
                 <option value="time" ${ex.type === 'time' ? 'selected' : ''}>Tiempo</option>
               </select>` : ''}
               ${exerciseSearchLinks(ex.name)}
               ${hasPerformance ? `<button class="performance-toggle-btn ${showPerformance ? 'active' : ''}" title="Ver ultima vez" onclick="togglePerformancePanel('${ex.id}')">↻</button>` : ''}
-              ${isFreeWorkout() ? `<button class="free-remove-exercise" title="Quitar ejercicio" aria-label="Quitar ${escapeAttribute(ex.name)}" onclick="removeFreeWorkoutExercise('${ex.id}')">×</button>` : ''}
+              ${isTemporary ? `<button class="free-remove-exercise" title="Quitar ejercicio temporal" aria-label="Quitar ${escapeAttribute(ex.name)}" onclick="removeFreeWorkoutExercise('${ex.id}')">×</button>` : ''}
               <div class="ex-progress">${done}/${total}</div>
               <button class="exercise-expand-btn" onclick="toggleExercisePanel('${ex.id}')">${isExpanded ? '-' : '+'}</button>
             </div>
           </div>
-          ${!isFreeWorkout() || hasPerformance ? exerciseProgressionHtml(ex) : ''}
+          ${!isTemporary || hasPerformance ? exerciseProgressionHtml(ex) : ''}
           ${showPerformance ? lastExerciseComparisonHtml(ex, d.series) : ''}
           <div class="series-table">
             <div class="col-headers ${isTime ? 'time-row' : ''}">
@@ -8233,7 +8260,7 @@ function sessionFeedbackHtml(entry){
 }
 function workoutSeriesForLog(exercise){
   const seriesList = workoutData[exercise.id]?.series || [];
-  if(!isFreeWorkout()) return seriesList.map(series => ({...series}));
+  if(!isTemporaryWorkoutExercise(exercise.id)) return seriesList.map(series => ({...series}));
   return seriesList.map(series => {
     const { empty, ...savedSeries } = series;
     if(exercise.type === 'time'){
