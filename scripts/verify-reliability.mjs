@@ -54,6 +54,11 @@ check(html.includes('function addFreeWorkoutExercise()'), 'El Entreno libre debe
 check(html.includes('createEmptyFreeSeries(type)'), 'Cada ejercicio libre debe comenzar con una serie vacia.');
 check(html.includes('changeFreeExerciseType'), 'El ejercicio libre debe permitir elegir peso, corporal o tiempo.');
 check(html.includes('freeWorkoutBuilderHtml() + exerciseCardsHtml'), 'El selector de ejercicios debe permanecer disponible durante el entreno libre.');
+check(html.includes('temporaryWorkoutExercises: freeWorkoutExercises'), 'Los ejercicios temporales deben recuperarse también dentro de una rutina activa.');
+check(html.includes('exercises: [...routine.exercises, ...freeWorkoutExercises]'), 'Una rutina activa debe combinar sus ejercicios con los temporales sin modificar la rutina guardada.');
+check(html.includes('Se guardará en este entreno, pero no se añadirá a la rutina para próximas veces.'), 'El selector debe explicar que el ejercicio solo pertenece a la sesión actual.');
+check(html.includes('if(timerSeconds % 15 === 0) persistActiveWorkout();'), 'El cronómetro no debe reescribir el estado completo cada segundo.');
+check(html.includes('function updateActiveSessionPill()'), 'El contador visible debe actualizarse sin reconstruir su HTML cada segundo.');
 check(html.includes('function currentWorkoutElapsedSeconds()'), 'La duracion debe calcularse con el reloj real aunque el navegador pause intervalos.');
 check(html.includes('const elapsed = currentWorkoutElapsedSeconds();'), 'Finalizar debe capturar la duracion antes de detener el cronometro.');
 check(html.includes('if(save() === false)'), 'Finalizar y editar deben comprobar que el guardado local fue durable.');
