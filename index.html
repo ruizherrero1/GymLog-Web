@@ -499,7 +499,7 @@
   #phase-active .series-input { min-height: 50px; font-size: 18px; font-weight: 600; }
   #phase-active .series-tick { min-height: 50px; font-size: 20px; }
   #phase-active .timer-btn { min-height: 50px; font-size: 13px; font-weight: 700; }
-  #phase-active .finish-section { position: static; margin-top: 8px; border-width: 2px; box-shadow: 0 12px 28px rgba(0,0,0,.28); padding-bottom: 86px; }
+  #phase-active .finish-section { position: static; margin-top: 8px; border-width: 2px; box-shadow: 0 12px 28px rgba(0,0,0,.28); padding-bottom: 156px; }
   #phase-active .finish-btn { min-height: 58px; font-size: 28px; }
   #phase-active .discard-btn { min-height: 48px; font-size: 16px; }
   .active-dock {
@@ -517,6 +517,16 @@
   .dock-btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)); border-color: color-mix(in srgb, var(--accent) 36%, transparent); color: var(--accent2); }
   .dock-btn.done { background: color-mix(in srgb, var(--done) 14%, transparent); border-color: color-mix(in srgb, var(--done) 36%, transparent); color: #9ef1d0; }
   .dock-btn:hover { border-color: var(--accent); }
+  .rest-timer-dock { position:fixed; left:max(12px, calc((100vw - 700px) / 2 + 16px)); right:max(12px, calc((100vw - 700px) / 2 + 16px)); bottom:calc(82px + env(safe-area-inset-bottom, 0px)); z-index:89; display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--border); border-radius:16px; background:color-mix(in srgb, var(--bg) 88%, transparent); box-shadow:0 10px 24px rgba(0,0,0,.26); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  .rest-timer-copy { display:flex; flex-direction:column; min-width:66px; padding-left:4px; }
+  .rest-timer-copy span { font-size:10px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+  .rest-timer-copy strong { font-family:'Bebas Neue',sans-serif; font-size:26px; line-height:.9; letter-spacing:1px; color:var(--text); }
+  .rest-timer-options { display:flex; gap:5px; flex:1; }
+  .rest-timer-options button, .rest-timer-start { min-height:38px; border-radius:10px; border:1px solid var(--border); background:rgba(255,255,255,.045); color:var(--muted); font:800 11px 'DM Sans',sans-serif; cursor:pointer; }
+  .rest-timer-options button { flex:1; padding:0 6px; }
+  .rest-timer-options button.active { color:var(--accent2); border-color:color-mix(in srgb,var(--accent) 45%,transparent); background:color-mix(in srgb,var(--accent) 13%,transparent); }
+  .rest-timer-start { min-width:70px; padding:0 10px; color:var(--accent2); border-color:color-mix(in srgb,var(--accent) 35%,transparent); }
+  .rest-timer-start.running { background:var(--accent); border-color:var(--accent); color:#111; }
   .focus-timer-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 220; display:none;
     align-items: flex-end; justify-content:center; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
@@ -794,6 +804,8 @@
     .exercise-omit-btn { min-height:30px; padding:0 8px; }
     .active-dock { grid-template-columns: 1fr 1fr 1fr; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); padding: 8px; border-radius: 16px; }
     .dock-btn { min-height: 46px; font-size: 12px; padding: 0 8px; }
+    .rest-timer-dock { bottom:calc(76px + env(safe-area-inset-bottom, 0px)); padding:7px; gap:6px; }
+    .rest-timer-copy { min-width:58px; }.rest-timer-copy strong { font-size:23px; }.rest-timer-options { gap:4px; }.rest-timer-options button { font-size:10px; padding:0 4px; }.rest-timer-start { min-width:62px; padding:0 7px; font-size:10px; }
     .focus-timer-sheet { border-radius: 24px; padding: 16px; }
     .focus-timer-value { font-size: 72px; }
     .focus-timer-actions { grid-template-columns: 1fr; }
@@ -1002,6 +1014,7 @@
       </div>
     </div>
       <div id="activeExercises"></div>
+      <div id="activeRestTimer" class="rest-timer-dock" aria-live="polite"></div>
       <div id="activeQuickActions" class="active-dock">
       <button class="dock-btn primary" disabled="" onclick="markCurrentSeries()">Sin pendientes</button>
       <button class="dock-btn" onclick="jumpToNextExercise()">Siguiente</button>
@@ -5307,6 +5320,10 @@ function initTheme(){
 
 // TIMER
 let timerInterval=null, timerStart=null, timerSeconds=0;
+let restTimerInterval = null;
+let restTimerDuration = 90;
+let restTimerRemaining = 90;
+let restTimerEndsAt = 0;
 function updateHeaderWorkoutBadge(){
   const badge = document.getElementById('timerBadge');
   const titleEl = document.getElementById('timerBadgeTitle');
@@ -5356,6 +5373,77 @@ function stopTimer(silent=false){
   timerSeconds = 0;
   updateHeaderWorkoutBadge();
   return silent ? 0 : elapsed;
+}
+function renderRestTimerDock(){
+  const dock = document.getElementById('activeRestTimer');
+  if(!dock) return;
+  if(!currentRoutineId){
+    dock.innerHTML = '';
+    dock.style.display = 'none';
+    return;
+  }
+  dock.style.display = 'flex';
+  const running = !!restTimerInterval;
+  const current = Math.max(0, restTimerRemaining || 0);
+  const action = running ? 'Pausar' : (current > 0 && current < restTimerDuration ? 'Reanudar' : 'Iniciar');
+  dock.innerHTML = `
+    <div class="rest-timer-copy"><span>Descanso</span><strong>${formatSeconds(current)}</strong></div>
+    <div class="rest-timer-options" aria-label="Duración del descanso">
+      ${[60,90,120].map(seconds => `<button class="${restTimerDuration === seconds ? 'active' : ''}" onclick="setRestTimerDuration(${seconds})">${formatSeconds(seconds)}</button>`).join('')}
+    </div>
+    <button class="rest-timer-start ${running ? 'running' : ''}" onclick="toggleRestTimer()">${action}</button>
+  `;
+}
+function clearRestTimer(){
+  if(restTimerInterval){ clearInterval(restTimerInterval); restTimerInterval = null; }
+  restTimerEndsAt = 0;
+}
+function resetRestTimer(){
+  clearRestTimer();
+  restTimerDuration = 90;
+  restTimerRemaining = restTimerDuration;
+  renderRestTimerDock();
+}
+function updateRestTimer(){
+  if(!restTimerEndsAt) return;
+  restTimerRemaining = Math.max(0, Math.ceil((restTimerEndsAt - Date.now()) / 1000));
+  if(restTimerRemaining > 0){
+    renderRestTimerDock();
+    return;
+  }
+  clearRestTimer();
+  restTimerRemaining = 0;
+  renderRestTimerDock();
+  playTimerBeep();
+  if(navigator.vibrate) navigator.vibrate([180, 80, 180]);
+  showToast('✓ Descanso terminado');
+}
+function startRestTimer(seconds = restTimerRemaining || restTimerDuration){
+  const duration = Math.max(1, Math.floor(+seconds || restTimerDuration));
+  clearRestTimer();
+  restTimerRemaining = duration;
+  restTimerEndsAt = Date.now() + (duration * 1000);
+  // El desbloqueo ocurre dentro del toque del usuario para que iOS permita el aviso al llegar a cero.
+  primeAudioContext();
+  updateRestTimer();
+  restTimerInterval = setInterval(updateRestTimer, 250);
+}
+function toggleRestTimer(){
+  if(restTimerInterval){
+    updateRestTimer();
+    clearRestTimer();
+    renderRestTimerDock();
+    return;
+  }
+  startRestTimer(restTimerRemaining || restTimerDuration);
+}
+function setRestTimerDuration(seconds){
+  restTimerDuration = Math.max(1, Math.floor(+seconds || 90));
+  const wasRunning = !!restTimerInterval;
+  clearRestTimer();
+  restTimerRemaining = restTimerDuration;
+  renderRestTimerDock();
+  if(wasRunning) startRestTimer(restTimerDuration);
 }
 async function requestWorkoutWakeLock(){
   try{
@@ -5651,6 +5739,7 @@ function renderWorkoutGrid(){
 
   const grid = document.getElementById('workoutRoutineGrid');
   grid.innerHTML = workoutGridCardsHtml();
+  renderRestTimerDock();
 }
 
 function showPreview(id){
@@ -5718,6 +5807,7 @@ function goToGrid(){
     if(!confirm('¿Volver atrás? Se perderá el progreso actual.')) return;
     stopTimer();
     stopAllSeriesTimers();
+    resetRestTimer();
     clearActiveWorkout();
     currentRoutineId = null;
     workoutData = {};
@@ -5868,6 +5958,7 @@ function lastExerciseComparisonHtml(exercise, currentSeries = []){
 function startWorkout(id){
   currentRoutineId = id;
   freeWorkoutExercises = [];
+  resetRestTimer();
   document.querySelector('header')?.classList.add('workout-mode');
   activeWorkoutListExpanded = false;
   activeExercisePanels = {};
@@ -5938,6 +6029,7 @@ function createEmptyFreeSeries(type){
 function startFreeWorkout(){
   currentRoutineId = FREE_WORKOUT_ID;
   freeWorkoutExercises = [];
+  resetRestTimer();
   activeExerciseIds = [];
   workoutData = {};
   activeWorkoutListExpanded = false;
@@ -8110,6 +8202,7 @@ function renderActiveExercises(){
     const activeQuickActions = document.getElementById('activeQuickActions');
     if(activeExercises) activeExercises.innerHTML = '';
     if(activeQuickActions) activeQuickActions.innerHTML = '';
+    renderRestTimerDock();
     closeFocusTimer();
     return;
   }
@@ -8236,6 +8329,7 @@ function renderActiveExercises(){
       <button class="dock-btn done" onclick="askFinishWorkout()">Finalizar</button>
     `;
   }
+  renderRestTimerDock();
   renderFocusTimer();
 }
 function toggleSeriesTimer(exId, idx){
@@ -8286,6 +8380,7 @@ function tickSeries(exId, idx){
     stopSeriesTimer(exId, idx);
     signalSeriesCompleted(`${exId}-${idx}`);
   }
+  renderRestTimerDock();
   persistActiveWorkout();
   renderActiveExercises();
 }
@@ -8303,6 +8398,7 @@ function goToGrid(){
     if(!confirm('¿Volver atras? Se perdera el progreso actual.')) return;
     stopTimer();
     stopAllSeriesTimers();
+    resetRestTimer();
     clearActiveWorkout();
     currentRoutineId = null;
     workoutData = {};
@@ -8344,6 +8440,7 @@ function currentWorkoutElapsedSeconds(){
 }
 function leaveCompletedWorkout(){
   stopAllSeriesTimers();
+  resetRestTimer();
   closeFocusTimer();
   releaseWorkoutWakeLock();
   stopTimer(true);
@@ -8424,6 +8521,7 @@ function discardWorkout(){
   if(!confirm('¿Descartar este entrenamiento?')) return;
   stopTimer();
   stopAllSeriesTimers();
+  resetRestTimer();
   closeFocusTimer();
   releaseWorkoutWakeLock();
   clearActiveWorkout();
@@ -8716,7 +8814,7 @@ function playTimerBeep(soundOverride){
 
     // En iOS Safari el AudioContext arranca "suspended" hasta que hay un gesto
     // del usuario. resume() siempre y luego reproducimos cuando esté listo.
-    if(ctx.state === 'suspended'){
+    if(ctx.state === 'suspended' || ctx.state === 'interrupted'){
       ctx.resume().then(_doPlay).catch(err => {
         console.warn('No se pudo reanudar el AudioContext.', err);
       });
@@ -8741,7 +8839,7 @@ function primeAudioContext(){
       window.__gymTimerAudioCtx = new AudioCtx();
     }
     const ctx = window.__gymTimerAudioCtx;
-    if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
+    if(ctx.state === 'suspended' || ctx.state === 'interrupted') ctx.resume().catch(()=>{});
     // Sonido "fantasma" silencioso para forzar que iOS considere al audio desbloqueado.
     const now = ctx.currentTime;
     const g = ctx.createGain();
@@ -9525,6 +9623,7 @@ function startRoutineFromNotes(id){
     if(!confirm('Ya hay un entrenamiento activo. ¿Empezar esta rutina y descartar el progreso actual?')) return;
     stopTimer(true);
     if(typeof stopAllSeriesTimers === 'function') stopAllSeriesTimers();
+    resetRestTimer();
     clearActiveWorkout();
     currentRoutineId = null;
     workoutData = {};
