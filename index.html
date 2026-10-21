@@ -453,6 +453,8 @@
   }
   .performance-toggle-btn:hover,
   .performance-toggle-btn.active { color: var(--accent2); border-color: color-mix(in srgb, var(--accent) 42%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .exercise-omit-btn { min-height:34px; padding:0 10px; border-radius:10px; border:1px solid rgba(251,191,36,.28); background:rgba(251,191,36,.08); color:#fbbf24; font-size:11px; font-weight:800; cursor:pointer; }
+  .exercise-omit-btn:hover { background:rgba(251,191,36,.15); }
   .exercise-block.compact .series-table { display:none; }
   .series-row.just-completed { animation: rowPulse .55s ease; }
   @keyframes rowPulse {
@@ -789,6 +791,7 @@
     .active-current-name { font-size: 22px; }
     .active-summary-actions { gap:8px; }
     .exercise-expand-btn, .performance-toggle-btn { width: 30px; height: 30px; }
+    .exercise-omit-btn { min-height:30px; padding:0 8px; }
     .active-dock { grid-template-columns: 1fr 1fr 1fr; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); padding: 8px; border-radius: 16px; }
     .dock-btn { min-height: 46px; font-size: 12px; padding: 0 8px; }
     .focus-timer-sheet { border-radius: 24px; padding: 16px; }
@@ -867,9 +870,8 @@
 .preview-search-btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 9px;border-radius:11px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.055);color:var(--text);font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap;touch-action:manipulation;}
 .preview-search-btn.google{color:#93c5fd}.preview-search-btn.youtube{color:#fca5a5}.preview-search-btn:active{transform:scale(.96);background:rgba(255,255,255,.10);}
 .active-exercise-search{display:flex;align-items:center;gap:5px}.active-search-btn{display:inline-flex;align-items:center;justify-content:center;width:31px;height:31px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.055);font-size:13px;font-weight:900;text-decoration:none}.active-search-btn.google{color:#93c5fd}.active-search-btn.youtube{color:#fca5a5}
-.free-workout-card{border:1px dashed color-mix(in srgb,var(--accent) 55%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 18%,transparent),rgba(255,255,255,.035));}
-.free-workout-card .r-name{color:var(--text)}
-.free-workout-card .free-workout-icon{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent);font-size:22px}
+.free-workout-card{grid-column:1/-1;min-height:0;padding:10px 12px;border:1px dashed color-mix(in srgb,var(--accent) 38%,var(--border));background:rgba(255,255,255,.025);box-shadow:none;display:flex;align-items:center;gap:12px}
+.free-workout-card::after{display:none}.free-workout-card .routine-card-main{flex:1}.free-workout-card .r-name{color:var(--muted);font-size:15px}.free-workout-card .r-meta,.free-workout-card .r-last{display:none}.free-workout-card .r-footer-inline{display:block;flex:0 0 auto}.free-workout-card .r-start-btn{min-width:0;height:34px;padding:0 12px;border-radius:11px;font-size:12px}
 .free-workout-builder{margin:0 0 14px;padding:16px;border-radius:20px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 13%,transparent),rgba(255,255,255,.035));border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));box-shadow:var(--glass-shadow)}
 .free-workout-builder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.free-workout-builder-title{font-size:17px;font-weight:900}.free-workout-builder-copy{margin-top:3px;color:var(--muted);font-size:12px;line-height:1.4}
 .free-workout-fields{display:grid;grid-template-columns:minmax(0,1fr) 132px auto;gap:8px}.free-workout-fields input,.free-workout-fields select,.free-type-select{min-width:0;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:0 11px;font:inherit}.free-workout-fields button{min-height:44px;border-radius:12px;padding:0 15px;border:0;background:var(--accent);color:#111;font-weight:900;cursor:pointer}.free-type-select{width:112px;height:36px;padding:0 8px;font-size:12px;font-weight:800}
@@ -4769,10 +4771,11 @@
 <div class="overlay" id="overlayWeight">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('overlayWeight')">✕</button>
-    <div class="modal-title">Registrar peso</div>
+    <div class="modal-title">Registrar medidas</div>
     <div class="field"><label>Fecha</label><input id="weightDate" type="date"></div>
     <div class="field"><label>Peso actual (kg)</label><input id="weightInput" type="number" min="0" step="0.1" placeholder="Ej: 70.4"></div>
-    <button class="btn btn-primary" style="width:100%" onclick="saveBodyWeight()">Confirmar</button>
+    <div class="field"><label>Cintura (cm, semanal y opcional)</label><input id="waistInput" type="number" min="0" step="0.1" placeholder="Ej: 82"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="saveBodyWeight()">Guardar medidas</button>
   </div>
 </div>
 
@@ -5056,7 +5059,7 @@ const NOTES_ROUTINE_LINKS = [];
 
 const DEFAULT_NOTES_SECTIONS = [];
 
-const defaultState = { ...structuredClone(importedState), weightLog: [] };
+const defaultState = { ...structuredClone(importedState), weightLog: [], waistLog: [] };
 
 function normalizeNotesSections(input){
   const customSections = Array.isArray(input) ? input : [];
@@ -5093,6 +5096,7 @@ function normalizeState(input){
     workoutLog: Array.isArray(input?.workoutLog) ? input.workoutLog : [],
     deletedWorkoutLog: Array.isArray(input?.deletedWorkoutLog) ? input.deletedWorkoutLog : [],
     weightLog: Array.isArray(input?.weightLog) ? input.weightLog : [],
+    waistLog: Array.isArray(input?.waistLog) ? input.waistLog : [],
     settings: (input && typeof input.settings === 'object' && input.settings !== null) ? input.settings : {}
   };
   // Ajustes por defecto
@@ -5127,6 +5131,7 @@ function normalizeState(input){
     })) : []
   }));
   next.weightLog = next.weightLog.map(item => ({ date: item.date || isoDate(new Date()), weight: Math.max(0, +(item.weight || 0)) })).filter(item => item.weight);
+  next.waistLog = next.waistLog.map(item => ({ date: item.date || isoDate(new Date()), waist: Math.max(0, +(item.waist || 0)) })).filter(item => item.waist);
   next.deletedWorkoutLog = next.deletedWorkoutLog.map(item => {
     const log = item?.log && typeof item.log === 'object' ? item.log : item;
     return {
@@ -5175,6 +5180,7 @@ function mergeImportedData(base, incomingState = importedState){
   const logIds = new Set(base.workoutLog.map(log => log.id));
   const deletedLogIds = new Set((base.deletedWorkoutLog || []).map(item => item.log?.id || item.id));
   const weightByDate = new Map(base.weightLog.map(item => [item.date, item]));
+  const waistByDate = new Map((base.waistLog || []).map(item => [item.date, item]));
 
   incoming.routines.forEach(routine => {
     const clone = structuredClone(routine);
@@ -5203,6 +5209,8 @@ function mergeImportedData(base, incomingState = importedState){
     weightByDate.set(item.date, structuredClone(item));
   });
   base.weightLog = Array.from(weightByDate.values()).sort((a,b)=>a.date.localeCompare(b.date));
+  incoming.waistLog.forEach(item => waistByDate.set(item.date, structuredClone(item)));
+  base.waistLog = Array.from(waistByDate.values()).sort((a,b)=>a.date.localeCompare(b.date));
 
   return normalizeState(base);
 }
@@ -5417,6 +5425,7 @@ let previewRoutineId = null;
 let currentRoutineId = null;
 let workoutData = {};
 let freeWorkoutExercises = [];
+let activeExerciseIds = [];
 let activeTimers = {};
 let currentTab = 'workout';
 let activeWorkoutListExpanded = false;
@@ -5467,6 +5476,7 @@ function persistActiveWorkout(){
     activeWorkoutListExpanded,
     activeExercisePanels,
     activePerformancePanels,
+    activeExerciseIds,
     temporaryWorkoutExercises: freeWorkoutExercises,
     ...(isFreeWorkout() ? { freeWorkoutExercises } : {}),
     savedAt: Date.now()
@@ -5504,6 +5514,11 @@ function restoreActiveWorkout(){
     activeWorkoutListExpanded = !!snapshot.activeWorkoutListExpanded;
     activeExercisePanels = snapshot.activeExercisePanels || {};
     activePerformancePanels = snapshot.activePerformancePanels || {};
+    const restoredExerciseIds = getCurrentWorkoutRoutine()?.exercises.map(exercise => exercise.id) || [];
+    const savedExerciseIds = Array.isArray(snapshot.activeExerciseIds) ? snapshot.activeExerciseIds : [];
+    activeExerciseIds = savedExerciseIds.length
+      ? savedExerciseIds.filter(id => restoredExerciseIds.includes(id))
+      : restoredExerciseIds;
     document.querySelector('header')?.classList.add('workout-mode');
     document.getElementById('phase-grid').style.display='none';
     document.getElementById('phase-preview').style.display='none';
@@ -5592,7 +5607,6 @@ function workoutGridCardsHtml(){
   const freeCard = `
     <div class="routine-card routine-card-compact free-workout-card" onclick="startFreeWorkout()">
       <div class="routine-card-main">
-        <span class="free-workout-icon" aria-hidden="true">＋</span>
         <div class="r-name">Entreno libre</div>
         <div class="r-meta">Empieza sin rutina y añade ejercicios sobre la marcha.</div>
       </div>
@@ -5862,6 +5876,7 @@ function startWorkout(id){
   focusTimerState = { open:false, exId:null, idx:null };
   const r = state.routines.find(x=>x.id===id);
   if(!r) return;
+  activeExerciseIds = r.exercises.map(exercise => exercise.id);
 
   // Si la rutina se editó después del último entrenamiento de ese ejercicio,
   // usamos los valores de la rutina (no los del histórico) para que los cambios
@@ -5923,6 +5938,7 @@ function createEmptyFreeSeries(type){
 function startFreeWorkout(){
   currentRoutineId = FREE_WORKOUT_ID;
   freeWorkoutExercises = [];
+  activeExerciseIds = [];
   workoutData = {};
   activeWorkoutListExpanded = false;
   activeExercisePanels = {};
@@ -5997,6 +6013,7 @@ function addFreeWorkoutExercise(){
     defaultDuration:0
   };
   freeWorkoutExercises.push(exercise);
+  activeExerciseIds.push(exercise.id);
   workoutData[exercise.id] = { series:[createEmptyFreeSeries(type)] };
   activeExercisePanels[exercise.id] = true;
   persistActiveWorkout();
@@ -6032,6 +6049,7 @@ function removeFreeWorkoutExercise(exId){
   if(hasRecordedData && !confirm(`¿Quitar ${exercise.name} y sus series de este entreno?`)) return;
   series.forEach((item,index)=>stopSeriesTimer(exId,index));
   freeWorkoutExercises = freeWorkoutExercises.filter(item => item.id !== exId);
+  activeExerciseIds = activeExerciseIds.filter(id => id !== exId);
   delete workoutData[exId];
   delete activeExercisePanels[exId];
   delete activePerformancePanels[exId];
@@ -6861,6 +6879,13 @@ function sessionCompletion(entry){
   const total = sessionSeriesCount(entry);
   return total ? Math.round((sessionDoneCount(entry) / total) * 100) : 0;
 }
+function omittedExercisesChipHtml(entry){
+  const omitted = Array.isArray(entry?.omittedExercises) ? entry.omittedExercises.filter(exercise => exercise?.name) : [];
+  if(!omitted.length) return '';
+  const names = omitted.map(exercise => exercise.name).join(', ');
+  const label = omitted.length === 1 ? '1 ejercicio omitido' : `${omitted.length} ejercicios omitidos`;
+  return `<div class="history-chip warn" title="${escapeAttribute(names)}">${label}</div>`;
+}
 
 function calendarSignalsForEntries(entries = []){
   const signals = new Set();
@@ -6989,6 +7014,7 @@ function showDayDetail(ds){
                   <div class="history-chip">${Math.round(sessionVolume(e))} kg</div>
                   <div class="history-chip muted">${done}/${total} series</div>
                   <div class="history-chip muted">${completion}% completado</div>
+                  ${omittedExercisesChipHtml(e)}
                 </div>
                 ${sessionFeedbackHtml(e)}
               </div>
@@ -7357,6 +7383,7 @@ function renderProgress(){
         <div class="history-chip muted">${doneSets}/${totalSets} series</div>
         <div class="history-chip muted">${completion}% completado</div>
         <div class="history-chip muted">${e.exercises.length} ejercicios</div>
+        ${omittedExercisesChipHtml(e)}
       </div>
       <div class="progress-ex-grid">
         ${e.exercises.map(ex=>{
@@ -7442,6 +7469,7 @@ function closeModal(id, force=false){
   }
   if(id === 'overlayWeight'){
     document.getElementById('weightInput').value='';
+    document.getElementById('waistInput').value='';
   }
 }
 document.querySelectorAll('.overlay').forEach(o=>{
@@ -7810,32 +7838,53 @@ function getLatestWeightEntry(){
   const items = [...(state.weightLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
   return items[items.length-1] || null;
 }
+function getLatestWaistEntry(){
+  const items = [...(state.waistLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
+  return items[items.length-1] || null;
+}
 function openWeightModal(){
   document.getElementById('weightDate').value = isoDate(new Date());
   const latest = getLatestWeightEntry();
+  const latestWaist = getLatestWaistEntry();
   document.getElementById('weightInput').value = latest ? latest.weight : '';
+  document.getElementById('waistInput').value = latestWaist ? latestWaist.waist : '';
   openModal('overlayWeight');
 }
 function saveBodyWeight(){
   const date = document.getElementById('weightDate').value || isoDate(new Date());
   const weight = Math.max(0, parseFloat(document.getElementById('weightInput').value) || 0);
-  if(!weight){ alert('Introduce un peso válido.'); return; }
-  state.weightLog = (state.weightLog || []).filter(item => item.date !== date);
-  state.weightLog.push({ date, weight });
-  state.weightLog.sort((a,b)=>a.date.localeCompare(b.date));
+  const waist = Math.max(0, parseFloat(document.getElementById('waistInput').value) || 0);
+  if(!weight && !waist){ alert('Introduce al menos un peso o una medida de cintura válidos.'); return; }
+  if(weight){
+    state.weightLog = (state.weightLog || []).filter(item => item.date !== date);
+    state.weightLog.push({ date, weight });
+    state.weightLog.sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  if(waist){
+    state.waistLog = (state.waistLog || []).filter(item => item.date !== date);
+    state.waistLog.push({ date, waist });
+    state.waistLog.sort((a,b)=>a.date.localeCompare(b.date));
+  }
   save();
   closeModal('overlayWeight', true);
   renderProgress();
-  showToast('✓ Peso guardado');
+  showToast('✓ Medidas guardadas');
 }
 function renderWeightProgress(){
   const weightLog = [...(state.weightLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
+  const waistLog = [...(state.waistLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
   const latest = weightLog[weightLog.length-1];
+  const latestWaist = waistLog[waistLog.length-1];
   const valueEl = document.getElementById('currentWeightValue');
   if(valueEl) valueEl.textContent = latest ? `${latest.weight.toFixed(1)} kg` : '--';
   const metaEl = document.getElementById('currentWeightMeta');
   if(metaEl) metaEl.textContent = latest ? `Último registro: ${latest.date}` : 'Sin registros todavía';
+  const waistValueEl = document.getElementById('currentWaistValue');
+  if(waistValueEl) waistValueEl.textContent = latestWaist ? `${latestWaist.waist.toFixed(1)} cm` : '--';
+  const waistMetaEl = document.getElementById('currentWaistMeta');
+  if(waistMetaEl) waistMetaEl.textContent = latestWaist ? `Último registro: ${latestWaist.date}` : 'Sin registros todavía';
   if(document.getElementById('weightChart')) drawLineChart('weightChart', weightLog.map(x=>x.date), weightLog.map(x=>x.weight), 'kg');
+  if(document.getElementById('waistChart')) drawLineChart('waistChart', waistLog.map(x=>x.date), waistLog.map(x=>x.waist), 'cm');
 }
 
 function signalSeriesCompleted(seriesKey){
@@ -7850,7 +7899,9 @@ function signalSeriesCompleted(seriesKey){
 function getActiveWorkoutSnapshot(){
   const routine = getCurrentWorkoutRoutine();
   if(!routine) return null;
-  const exerciseStats = routine.exercises.map((ex, idx) => {
+  const activeIds = new Set(activeExerciseIds);
+  const visibleExercises = routine.exercises.filter(ex => activeIds.has(ex.id));
+  const exerciseStats = visibleExercises.map((ex, idx) => {
     const d = workoutData[ex.id] || { series: [] };
     const done = d.series.filter(s=>s.done).length;
     const total = d.series.length;
@@ -7893,6 +7944,28 @@ function togglePerformancePanel(exId){
   activePerformancePanels[exId] = !activePerformancePanels[exId];
   persistActiveWorkout();
   renderActiveExercises();
+}
+function omitExerciseFromActiveWorkout(exId){
+  const snapshot = getActiveWorkoutSnapshot();
+  const item = snapshot?.exerciseStats.find(stat => stat.ex.id === exId);
+  if(!item) return;
+  if(isTemporaryWorkoutExercise(exId)){
+    removeFreeWorkoutExercise(exId);
+    return;
+  }
+  if(snapshot.exerciseStats.length <= 1){
+    showToast('Deja al menos un ejercicio en la sesión');
+    return;
+  }
+  if(!confirm(`¿Omitir «${item.ex.name}» solo en esta sesión? La rutina guardada no cambiará.`)) return;
+  (workoutData[exId]?.series || []).forEach((series, index) => stopSeriesTimer(exId, index));
+  activeExerciseIds = activeExerciseIds.filter(id => id !== exId);
+  delete activeExercisePanels[exId];
+  delete activePerformancePanels[exId];
+  if(focusTimerState.exId === exId) closeFocusTimer();
+  persistActiveWorkout();
+  renderActiveExercises();
+  showToast(`Omitido: ${item.ex.name}`);
 }
 function focusExercisePanel(exId){
   activeExercisePanels[exId] = true;
@@ -7939,10 +8012,10 @@ function triggerFocusTimerAlert(timerKey){
   }, 2200);
 }
 function findNextTimedSeries(currentExId, currentIdx){
-  const routine = getCurrentWorkoutRoutine();
-  if(!routine) return null;
+  const snapshot = getActiveWorkoutSnapshot();
+  if(!snapshot) return null;
   let passedCurrent = false;
-  for(const ex of routine.exercises){
+  for(const { ex } of snapshot.exerciseStats){
     const seriesList = workoutData[ex.id]?.series || [];
     if(ex.id === currentExId){
       passedCurrent = true;
@@ -8097,8 +8170,6 @@ function renderActiveExercises(){
       const showW = ex.type === 'weight';
       const isTime = ex.type === 'time';
       const isExpanded = ex.id === currentExerciseId || !!activeExercisePanels[ex.id];
-      const showPerformance = !!activePerformancePanels[ex.id];
-      const hasPerformance = !!getLastExercisePerformance(ex.name);
       const classes = ['exercise-block'];
       if(isTemporary) classes.push('free-exercise-block');
       if(ex.id === currentExerciseId) classes.push('current-ex');
@@ -8119,14 +8190,12 @@ function renderActiveExercises(){
                 <option value="time" ${ex.type === 'time' ? 'selected' : ''}>Tiempo</option>
               </select>` : ''}
               ${exerciseSearchLinks(ex.name)}
-              ${hasPerformance ? `<button class="performance-toggle-btn ${showPerformance ? 'active' : ''}" title="Ver ultima vez" onclick="togglePerformancePanel('${ex.id}')">↻</button>` : ''}
+              ${!isTemporary ? `<button class="exercise-omit-btn" title="Omitir solo esta sesión" onclick="omitExerciseFromActiveWorkout('${ex.id}')">Omitir</button>` : ''}
               ${isTemporary ? `<button class="free-remove-exercise" title="Quitar ejercicio temporal" aria-label="Quitar ${escapeAttribute(ex.name)}" onclick="removeFreeWorkoutExercise('${ex.id}')">×</button>` : ''}
               <div class="ex-progress">${done}/${total}</div>
               <button class="exercise-expand-btn" onclick="toggleExercisePanel('${ex.id}')">${isExpanded ? '-' : '+'}</button>
             </div>
           </div>
-          ${!isTemporary || hasPerformance ? exerciseProgressionHtml(ex) : ''}
-          ${showPerformance ? lastExerciseComparisonHtml(ex, d.series) : ''}
           <div class="series-table">
             <div class="col-headers ${isTime ? 'time-row' : ''}">
               <div class="col-header">#</div>
@@ -8282,6 +8351,7 @@ function leaveCompletedWorkout(){
   currentRoutineId = null;
   workoutData = {};
   freeWorkoutExercises = [];
+  activeExerciseIds = [];
   document.querySelector('header')?.classList.remove('workout-mode');
   updateHeaderWorkoutBadge();
   renderWorkoutGrid();
@@ -8289,7 +8359,12 @@ function leaveCompletedWorkout(){
 function finishWorkout(){
   const r = getCurrentWorkoutRoutine();
   if(!r) return false;
-  const completedExercises = r.exercises.filter(ex=>Array.isArray(workoutData[ex.id]?.series));
+  const activeIds = new Set(activeExerciseIds);
+  const completedExercises = r.exercises.filter(ex => activeIds.has(ex.id) && Array.isArray(workoutData[ex.id]?.series));
+  const baseRoutine = isFreeWorkout() ? null : state.routines.find(routine => routine.id === currentRoutineId);
+  const omittedExercises = (baseRoutine?.exercises || [])
+    .filter(ex => !activeIds.has(ex.id))
+    .map(ex => ({ id:ex.id, name:ex.name }));
   if(!completedExercises.length){
     persistActiveWorkout();
     showToast('No se pudo finalizar. Tu progreso sigue guardado.');
@@ -8318,6 +8393,7 @@ function finishWorkout(){
     duration: elapsed,
     durationLabel: mins > 0 ? `${mins} min` : `${elapsed}s`,
     ...(finishNote ? { note:finishNote } : {}),
+    ...(omittedExercises.length ? { omittedExercises } : {}),
     exercises: completedExercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutSeriesForLog(ex) })),
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
@@ -8354,6 +8430,7 @@ function discardWorkout(){
   currentRoutineId = null;
   workoutData = {};
   freeWorkoutExercises = [];
+  activeExerciseIds = [];
   document.querySelector('header')?.classList.remove('workout-mode');
   updateHeaderWorkoutBadge();
   renderWorkoutGrid();
@@ -9077,12 +9154,12 @@ function renderProgressInfoPanel(logs){
   const activeMap = { weight:'progressInfoWeight', weightTrend:'progressInfoWeightTrend', routines:'progressInfoRoutines', exercises:'progressInfoExercises', diary:'progressInfoDiary', heartRate:'progressInfoHeartRate' };
   document.getElementById(activeMap[progressInfoOpen])?.classList.add('active');
   if(progressInfoOpen === 'weight'){
-    panel.innerHTML = `<div class="chart-card"><div class="weight-summary-card"><div><div class="chart-title" style="margin-bottom:2px">Peso</div><div class="weight-value" id="currentWeightValue">--</div><div class="weight-meta" id="currentWeightMeta">Sin registros todavia</div></div><button class="ghost-btn" onclick="openWeightModal()">Registrar peso</button></div></div>`;
+    panel.innerHTML = `<div class="chart-card"><div class="weight-summary-card"><div><div class="chart-title" style="margin-bottom:2px">Peso</div><div class="weight-value" id="currentWeightValue">--</div><div class="weight-meta" id="currentWeightMeta">Sin registros todavía</div></div><div><div class="chart-title" style="margin-bottom:2px">Cintura</div><div class="weight-value" id="currentWaistValue">--</div><div class="weight-meta" id="currentWaistMeta">Sin registros todavía</div></div><button class="ghost-btn" onclick="openWeightModal()">Registrar medidas</button></div></div>`;
     renderWeightProgress();
     return;
   }
   if(progressInfoOpen === 'weightTrend'){
-    panel.innerHTML = `<div class="chart-card"><div class="chart-title">Evolución peso</div><canvas id="weightChart" class="chart-canvas" width="640" height="220"></canvas><div class="progress-note">Se actualiza con tus registros de peso manuales.</div></div>`;
+    panel.innerHTML = `<div class="chart-card"><div class="chart-title">Evolución de peso</div><canvas id="weightChart" class="chart-canvas" width="640" height="220"></canvas><div class="chart-title" style="margin-top:20px">Evolución de cintura</div><canvas id="waistChart" class="chart-canvas" width="640" height="220"></canvas><div class="progress-note">Registra la cintura una vez por semana, en condiciones parecidas, para ver mejor los cambios de definición.</div></div>`;
     renderWeightProgress();
     return;
   }
@@ -9134,6 +9211,7 @@ function progressSessionCardHtml(log){
       <div class="history-chip muted">${doneSets}/${totalSets} series</div>
       <div class="history-chip muted">${completion}% completado</div>
       <div class="history-chip muted">${log.exercises.length} ejercicios</div>
+      ${omittedExercisesChipHtml(log)}
     </div>
     ${sessionFeedbackHtml(log)}
     ${healthHtml}
@@ -9597,11 +9675,13 @@ function backupStateSummary(snapshot = state){
   const logs = Array.isArray(snapshot?.workoutLog) ? snapshot.workoutLog : [];
   const deleted = Array.isArray(snapshot?.deletedWorkoutLog) ? snapshot.deletedWorkoutLog : [];
   const weights = Array.isArray(snapshot?.weightLog) ? snapshot.weightLog : [];
+  const waists = Array.isArray(snapshot?.waistLog) ? snapshot.waistLog : [];
   const latest = logs.map(log => String(log.completedAt || log.date || '')).filter(Boolean).sort().at(-1) || '';
   return {
     sessionCount: logs.length,
     deletedSessionCount: deleted.length,
     weightCount: weights.length,
+    waistCount: waists.length,
     latestWorkoutDate: latest ? latest.slice(0,10) : '',
     routineCount: Array.isArray(snapshot?.routines) ? snapshot.routines.length : 0
   };
@@ -9613,6 +9693,7 @@ function buildDriveBackupMeta(reason = 'manual'){
     sessionCount: String(summary.sessionCount),
     deletedSessionCount: String(summary.deletedSessionCount),
     weightCount: String(summary.weightCount),
+    waistCount: String(summary.waistCount),
     routineCount: String(summary.routineCount),
     latestWorkoutDate: summary.latestWorkoutDate,
     appSavedAt: new Date().toISOString()
