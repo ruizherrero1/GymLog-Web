@@ -5256,7 +5256,7 @@ function save(){
     console.error('No se pudo guardar el estado local de GymLog.', error);
     return false;
   }
-  if(gymLogCloudSession && gymLogCloudClient){
+  if(gymLogCloudSession && gymLogCloudClient && gymLogCloudStateReady){
     clearTimeout(gymLogSyncTimer);
     gymLogSyncTimer = setTimeout(()=>saveUserCloudState(), 2000);
   }
@@ -10366,6 +10366,13 @@ openModal = function(id){ openModalBaseForHealth(id); if(id === 'overlaySettings
 // --- LOGIN GATE ---
 let gymLoginEmail = '';
 let gymLogSyncTimer = null;
+// Do not let an older local copy overwrite the cloud while the account state
+// is still loading. Keep the server revision to reject simultaneous edits from
+// another device instead of silently replacing them.
+let gymLogCloudStateReady = false;
+let gymLogCloudRevision = null;
+let gymLogCloudStateLoadPromise = null;
+let gymLogCloudSyncBusy = false;
 
 function showLoginGate(){
   const gate = document.getElementById('loginGate');
@@ -10447,21 +10454,72 @@ async function loginWithGymGoogle(){
 }
 async function loadUserCloudState(){
   if(!gymLogCloudClient || !gymLogCloudSession) return;
-  try{
-    const { data, error } = await gymLogCloudClient.from('gymlog_user_state').select('data').eq('user_id', gymLogCloudSession.user.id).maybeSingle();
-    if(!error && data?.data){
-      state = { ...state, ...data.data };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      if(!restoreActiveWorkout()) renderWorkoutGrid();
-      showToast('✓ Datos cargados desde la nube');
+  if(gymLogCloudStateLoadPromise) return gymLogCloudStateLoadPromise;
+  gymLogCloudStateReady = false;
+  gymLogCloudStateLoadPromise = (async()=>{
+    try{
+      const { data, error } = await gymLogCloudClient.from('gymlog_user_state').select('data, revision').eq('user_id', gymLogCloudSession.user.id).maybeSingle();
+      if(error) throw error;
+      if(data?.data){
+        state = { ...state, ...data.data };
+        gymLogCloudRevision = Number.isFinite(+data.revision) ? +data.revision : null;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        if(!restoreActiveWorkout()) renderWorkoutGrid();
+        showToast('✓ Datos cargados desde la nube');
+      } else {
+        gymLogCloudRevision = null;
+      }
+      return true;
+    }catch(e){
+      console.warn('loadUserCloudState:', e);
+      return false;
+    }finally{
+      gymLogCloudStateReady = true;
+      gymLogCloudStateLoadPromise = null;
     }
-  }catch(e){ console.warn('loadUserCloudState:', e); }
+  })();
+  return gymLogCloudStateLoadPromise;
 }
 async function saveUserCloudState(){
-  if(!gymLogCloudClient || !gymLogCloudSession) return;
+  if(!gymLogCloudClient || !gymLogCloudSession || !gymLogCloudStateReady || gymLogCloudSyncBusy) return;
+  gymLogCloudSyncBusy = true;
   try{
-    await gymLogCloudClient.from('gymlog_user_state').upsert({ user_id:gymLogCloudSession.user.id, data:state, updated_at:new Date().toISOString() }, { onConflict:'user_id' });
-  }catch(e){ console.warn('saveUserCloudState:', e); }
+    const payload = { data:state, updated_at:new Date().toISOString() };
+    let result;
+    if(Number.isFinite(gymLogCloudRevision)){
+      result = await gymLogCloudClient.from('gymlog_user_state')
+        .update(payload)
+        .eq('user_id', gymLogCloudSession.user.id)
+        .eq('revision', gymLogCloudRevision)
+        .select('revision')
+        .maybeSingle();
+      if(result.error) throw result.error;
+      if(!result.data){
+        showToast('↻ Se cargó la versión más reciente para evitar sobrescribir cambios');
+        await loadUserCloudState();
+        return false;
+      }
+    } else {
+      result = await gymLogCloudClient.from('gymlog_user_state')
+        .insert({ user_id:gymLogCloudSession.user.id, ...payload })
+        .select('revision')
+        .maybeSingle();
+      if(result.error){
+        if(result.error.code === '23505'){
+          await loadUserCloudState();
+          return false;
+        }
+        throw result.error;
+      }
+    }
+    gymLogCloudRevision = Number.isFinite(+result.data?.revision) ? +result.data.revision : gymLogCloudRevision;
+    return true;
+  }catch(e){
+    console.warn('saveUserCloudState:', e);
+    return false;
+  }finally{
+    gymLogCloudSyncBusy = false;
+  }
 }
 async function signOutGymLogin(){
   if(!gymLogCloudClient) return;
@@ -10487,6 +10545,9 @@ async function initializeGymLogCloud(){
       if(!hadSession) loadUserCloudState();
       refreshGoogleHealthStatus();
     } else {
+      gymLogCloudStateReady = false;
+      gymLogCloudRevision = null;
+      gymLogCloudStateLoadPromise = null;
       showLoginGate();
     }
     renderHealthSettings();
