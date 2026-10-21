@@ -882,8 +882,8 @@
 .preview-search-btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 9px;border-radius:11px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.055);color:var(--text);font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap;touch-action:manipulation;}
 .preview-search-btn.google{color:#93c5fd}.preview-search-btn.youtube{color:#fca5a5}.preview-search-btn:active{transform:scale(.96);background:rgba(255,255,255,.10);}
 .active-exercise-search{display:flex;align-items:center;gap:5px}.active-search-btn{display:inline-flex;align-items:center;justify-content:center;width:31px;height:31px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.055);font-size:13px;font-weight:900;text-decoration:none}.active-search-btn.google{color:#93c5fd}.active-search-btn.youtube{color:#fca5a5}
-.free-workout-card{grid-column:1/-1;min-height:0;padding:10px 12px;border:1px dashed color-mix(in srgb,var(--accent) 38%,var(--border));background:rgba(255,255,255,.025);box-shadow:none;display:flex;align-items:center;gap:12px}
-.free-workout-card::after{display:none}.free-workout-card .routine-card-main{flex:1}.free-workout-card .r-name{color:var(--muted);font-size:15px}.free-workout-card .r-meta,.free-workout-card .r-last{display:none}.free-workout-card .r-footer-inline{display:block;flex:0 0 auto}.free-workout-card .r-start-btn{min-width:0;height:34px;padding:0 12px;border-radius:11px;font-size:12px}
+.free-workout-card{grid-column:1/-1;min-height:0;padding:10px 12px;border:1px dashed color-mix(in srgb,var(--accent) 38%,var(--border));background:rgba(255,255,255,.025);box-shadow:none;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px}
+.free-workout-card::after{display:none}.free-workout-card .routine-card-main{flex:1;display:block}.free-workout-card .r-name{color:var(--muted);font-size:15px}.free-workout-card .r-start-btn{flex:0 0 auto;min-width:0;height:34px;padding:0 12px;border-radius:11px;font-size:12px}
 .free-workout-builder{margin:0 0 14px;padding:16px;border-radius:20px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 13%,transparent),rgba(255,255,255,.035));border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));box-shadow:var(--glass-shadow)}
 .free-workout-builder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.free-workout-builder-title{font-size:17px;font-weight:900}.free-workout-builder-copy{margin-top:3px;color:var(--muted);font-size:12px;line-height:1.4}
 .free-workout-fields{display:grid;grid-template-columns:minmax(0,1fr) 132px auto;gap:8px}.free-workout-fields input,.free-workout-fields select,.free-type-select{min-width:0;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:0 11px;font:inherit}.free-workout-fields button{min-height:44px;border-radius:12px;padding:0 15px;border:0;background:var(--accent);color:#111;font-weight:900;cursor:pointer}.free-type-select{width:112px;height:36px;padding:0 8px;font-size:12px;font-weight:800}
@@ -5041,8 +5041,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-10-21T16:23:18.355Z",
-      "updatedAt": "2026-10-21T16:23:18.355Z"
+      "createdAt": "2026-10-21T16:28:02.350Z",
+      "updatedAt": "2026-10-21T16:28:02.350Z"
     }
   ],
   "workoutLog": [],
@@ -5705,12 +5705,8 @@ function workoutGridCardsHtml(){
     <div class="routine-card routine-card-compact free-workout-card" onclick="startFreeWorkout()">
       <div class="routine-card-main">
         <div class="r-name">Entreno libre</div>
-        <div class="r-meta">Empieza sin rutina y añade ejercicios sobre la marcha.</div>
       </div>
-      <div class="r-footer r-footer-inline">
-        <div class="r-last">Tú eliges ejercicios y series</div>
-        <button class="r-start-btn" style="background:${rgbaFromHex(accent,0.16)}; border-color:${rgbaFromHex(accent,0.30)}; color:${rgbaFromHex(accent,0.92)};" onclick="event.stopPropagation(); startFreeWorkout()">Empezar</button>
-      </div>
+      <button class="r-start-btn" style="background:${rgbaFromHex(accent,0.16)}; border-color:${rgbaFromHex(accent,0.30)}; color:${rgbaFromHex(accent,0.92)};" onclick="event.stopPropagation(); startFreeWorkout()">Empezar</button>
     </div>`;
 
   const routineCards = state.routines.map(r=>{
