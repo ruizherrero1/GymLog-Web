@@ -40,11 +40,18 @@ type WorkoutSession = {
   maxHeartRate?: number | null;
   exercises?: Array<{
     name: string;
+    type?: string;
     completedSets?: number;
     totalSets?: number;
     totalReps?: number;
     topWeightKg?: number;
     durationSeconds?: number;
+    series?: Array<{
+      done?: boolean;
+      reps?: number;
+      weight?: number;
+      duration?: number;
+    }>;
   }>;
 };
 type AppUser = {
@@ -74,7 +81,7 @@ function toSeconds(value?: number): string {
 }
 function normalizeExerciseType(value?: string): string {
   const type = String(value || "").toUpperCase();
-  return ["BIKING", "STRENGTH_TRAINING", "BODY_WEIGHT", "CALISTHENICS"].includes(type) ? type : "STRENGTH_TRAINING";
+  return ["BIKING", "RUNNING", "WALKING", "SWIMMING", "YOGA", "STRETCHING", "CARDIO_WORKOUT", "STRENGTH_TRAINING", "BODY_WEIGHT", "CALISTHENICS"].includes(type) ? type : "STRENGTH_TRAINING";
 }
 function cleanText(value: unknown, limit = 500): string {
   const flattened = String(value || "")
@@ -84,16 +91,38 @@ function cleanText(value: unknown, limit = 500): string {
   return flattened.split(" ").filter(Boolean).join(" ").trim().slice(0, limit);
 }
 function exerciseNotes(session: WorkoutSession, metrics?: Record<string, unknown>): string {
-  const lines = ["Registrado desde GymLog."];
-  if (session.completedSets || session.totalSets) lines.push(`Series: ${Math.max(0, Number(session.completedSets) || 0)}/${Math.max(0, Number(session.totalSets) || 0)}.`);
-  if (session.totalReps) lines.push(`Repeticiones: ${Math.max(0, Math.round(session.totalReps))}.`);
-  if (session.totalVolumeKg) lines.push(`Volumen: ${Math.round(session.totalVolumeKg)} kg.`);
-  if (Number.isFinite(Number(session.rpe))) lines.push(`Esfuerzo percibido (RPE): ${Math.min(10, Math.max(1, Math.round(Number(session.rpe))))}/10.`);
-  if (Number.isFinite(Number(metrics?.maxHeartRate)) && Number(metrics?.maxHeartRate) >= 40) lines.push(`FC maxima: ${Math.round(Number(metrics?.maxHeartRate))} bpm.`);
-  const exerciseNames = (session.exercises || []).map((item) => cleanText(item.name, 60)).filter(Boolean);
-  if (exerciseNames.length) lines.push(`Ejercicios: ${exerciseNames.slice(0, 12).join(", ")}.`);
-  if (cleanText(session.note, 240)) lines.push(`Nota: ${cleanText(session.note, 240)}`);
-  return lines.join(String.fromCharCode(10)).slice(0, 1000);
+  const lines = ["Entrenamiento registrado desde GymLog."];
+  if (cleanText(session.name, 90)) lines.push(`Rutina: ${cleanText(session.name, 90)}.`);
+  if (session.completedSets || session.totalSets) lines.push(`Series completadas: ${Math.max(0, Number(session.completedSets) || 0)}/${Math.max(0, Number(session.totalSets) || 0)}.`);
+  if (session.totalReps) lines.push(`Repeticiones completadas: ${Math.max(0, Math.round(session.totalReps))}.`);
+  if (session.totalVolumeKg) lines.push(`Volumen levantado: ${Number(Number(session.totalVolumeKg).toFixed(2))} kg.`);
+  if (session.rpe !== null && session.rpe !== undefined && Number.isFinite(Number(session.rpe))) lines.push(`Esfuerzo percibido (RPE): ${Math.min(10, Math.max(1, Math.round(Number(session.rpe))))}/10.`);
+  const averageHeartRate = Number(metrics?.averageHeartRate);
+  const maxHeartRate = Number(metrics?.maxHeartRate);
+  const heartRateSamples = Array.isArray(metrics?.heartRateSamples) ? metrics.heartRateSamples.length : 0;
+  if (heartRateSamples) lines.push(`Lecturas de FC recuperadas en el intervalo: ${heartRateSamples}.`);
+  if (Number.isFinite(averageHeartRate) && averageHeartRate >= 40) lines.push(`FC media: ${Math.round(averageHeartRate)} bpm.`);
+  if (Number.isFinite(maxHeartRate) && maxHeartRate >= 40) lines.push(`FC maxima: ${Math.round(maxHeartRate)} bpm.`);
+  for (const [index, item] of (session.exercises || []).entries()) {
+    const name = cleanText(item.name, 90);
+    if (!name) continue;
+    lines.push(`Ejercicio ${index + 1}: ${name} (${Math.max(0, Number(item.completedSets) || 0)}/${Math.max(0, Number(item.totalSets) || 0)} series).`);
+    (item.series || []).forEach((set, setIndex) => {
+      const status = set.done ? "completada" : "sin marcar";
+      let detail = `${setIndex + 1}: ${status}`;
+      if (item.type === "time") {
+        const seconds = Math.max(0, Math.round(Number(set.duration) || 0));
+        if (seconds) detail += `, ${seconds} s`;
+      } else {
+        const reps = Math.max(0, Math.round(Number(set.reps) || 0));
+        if (reps) detail += `, ${reps} rep`;
+        if (item.type === "weight" && Number(set.weight) > 0) detail += `, ${Number(set.weight)} kg`;
+      }
+      lines.push(`  Serie ${detail}.`);
+    });
+  }
+  if (cleanText(session.note, 240)) lines.push(`Nota de GymLog: ${cleanText(session.note, 240)}`);
+  return lines.join(String.fromCharCode(10)).slice(0, 10000);
 }
 function sampleTime(sample: { time?: string }): number {
   const value = Date.parse(sample.time || "");
@@ -126,6 +155,7 @@ function exercisePointBody(session: WorkoutSession, metrics: Record<string, unkn
   if (metrics.heartRateZoneDurations) summary.heartRateZoneDurations = metrics.heartRateZoneDurations;
   return {
     name: stableDataPointName(session),
+    dataSource: { recordingMethod: "MANUALLY_ENTERED" },
     exercise: {
       interval: { startTime: session.startTime, startUtcOffset: session.utcOffset || "0s", endTime: session.endTime, endUtcOffset: session.utcOffset || "0s" },
       exerciseType: normalizeExerciseType(session.type),

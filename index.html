@@ -9714,14 +9714,23 @@ function cloudWorkoutPayload(log){
     const series = Array.isArray(exercise.series) ? exercise.series : [];
     const completed = series.filter(item=>item.done);
     const performed = completed.length ? completed : series;
-    return { name:exercise.name || 'Ejercicio', completedSets:completed.length, totalSets:series.length, totalReps:exercise.type === 'time' ? 0 : performed.reduce((sum,item)=>sum+(+item.reps||0),0), topWeightKg:exercise.type === 'weight' ? Math.max(0,...performed.map(item=>+item.weight||0)) : 0, durationSeconds:exercise.type === 'time' ? performed.reduce((sum,item)=>sum+(+(item.duration ?? item.reps)||0),0) : 0 };
+    return { name:exercise.name || 'Ejercicio', type:exercise.type || 'reps', completedSets:completed.length, totalSets:series.length, totalReps:exercise.type === 'time' ? 0 : performed.reduce((sum,item)=>sum+(+item.reps||0),0), topWeightKg:exercise.type === 'weight' ? Math.max(0,...performed.map(item=>+item.weight||0)) : 0, durationSeconds:exercise.type === 'time' ? performed.reduce((sum,item)=>sum+(+(item.duration ?? item.reps)||0),0) : 0, series:series.map(item=>({ done:!!item.done, reps:Number(item.reps)||0, weight:Number(item.weight)||0, duration:Number(item.duration ?? item.reps)||0 })) };
   });
   const profile = state.settings?.healthProfile || {};
   const configuredMax = Number(profile.maxHeartRate);
   const age = Number(profile.age);
   const maxHeartRate = Number.isFinite(configuredMax) && configuredMax >= 100 ? configuredMax : (Number.isFinite(age) && age >= 12 ? Math.round(208-(0.7*age)) : null);
   const activityText = `${log.routineName || ''} ${(log.exercises || []).map(ex=>ex.name || '').join(' ')}`.toLowerCase();
-  const activityType = /bicic|ciclismo|cycling|bike/.test(activityText) ? 'BIKING' : 'STRENGTH_TRAINING';
+  const activityType = /bicic|ciclismo|cycling|bike/.test(activityText) ? 'BIKING'
+    : /correr|running|treadmill|cinta/.test(activityText) ? 'RUNNING'
+    : /caminar|walking|paseo/.test(activityText) ? 'WALKING'
+    : /nataci|swim/.test(activityText) ? 'SWIMMING'
+    : /yoga/.test(activityText) ? 'YOGA'
+    : /estiramiento|stretching/.test(activityText) ? 'STRETCHING'
+    : /calistenia|calisthenics/.test(activityText) ? 'CALISTHENICS'
+    : /peso corporal|body.?weight/.test(activityText) ? 'BODY_WEIGHT'
+    : /cardio|eliptica|elliptical|remo/.test(activityText) ? 'CARDIO_WORKOUT'
+    : 'STRENGTH_TRAINING';
   return {
     localId: log.id,
     name: log.routineName || 'GymLog fuerza',
@@ -9735,7 +9744,7 @@ function cloudWorkoutPayload(log){
     totalSets:exerciseSummary.reduce((sum,item)=>sum+item.totalSets,0),
     completedSets:exerciseSummary.reduce((sum,item)=>sum+item.completedSets,0),
     totalReps:exerciseSummary.reduce((sum,item)=>sum+item.totalReps,0),
-    totalVolumeKg:(log.exercises || []).reduce((sum,exercise)=>sum+(exercise.type === 'weight' ? (exercise.series || []).reduce((volume,item)=>volume+((+item.reps||0)*(+item.weight||0)),0) : 0),0),
+    totalVolumeKg:(log.exercises || []).reduce((sum,exercise)=>{ const series=Array.isArray(exercise.series)?exercise.series:[]; const completed=series.filter(item=>item.done); const performed=completed.length?completed:series; return sum+(exercise.type === 'weight' ? performed.reduce((volume,item)=>volume+((+item.reps||0)*(+item.weight||0)),0) : 0); },0),
     maxHeartRate,
     exercises:exerciseSummary
   };
