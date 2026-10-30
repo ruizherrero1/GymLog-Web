@@ -4888,19 +4888,10 @@
         <div class="health-note" id="healthUserLabel"></div>
         <div class="health-actions health-actions-primary">
           <button class="ghost-btn" id="connectGoogleHealthButton" onclick="connectGoogleHealth()">Conectar Google Health</button>
-          <button class="ghost-btn" id="syncLatestHealthButton" onclick="syncLatestWorkoutToHealth()">Sincronizar ultima sesion</button>
         </div>
         <details class="gym-health-more" id="gymHealthMoreOptions">
-          <summary>Mas opciones y copias</summary>
-          <div class="gym-health-more-title">Frecuencia cardiaca</div>
+          <summary>Google Drive y copias</summary>
           <div class="health-actions">
-            <button class="ghost-btn" id="retryHealthMetricsButton" onclick="retryHealthMetrics()">Actualizar detalles en Google</button>
-            <button class="ghost-btn" id="recoverFitbitMetricsButton" onclick="recoverMissingFitbitData()">Recuperar FC pendiente</button>
-          </div>
-          <div class="health-note" id="healthRecoveryLimitNote"></div>
-          <div class="gym-health-more-title">Historial y Drive</div>
-          <div class="health-actions">
-            <button class="ghost-btn" id="syncHistoryHealthButton" onclick="confirmAndSyncHistory()">Sincronizar historial completo</button>
             <button class="ghost-btn" id="connectGoogleDriveButton" onclick="connectGoogleDrive()">Conectar Google Drive</button>
             <button class="ghost-btn" id="backupHealthButton" onclick="createDriveBackup()">Crear copia JSON ahora</button>
             <button class="ghost-btn" id="listDriveBackupsButton" onclick="loadDriveBackups()">Ver copias de Drive</button>
@@ -4914,6 +4905,7 @@
         </div>
         <div class="health-note" id="healthActivityNote"></div>
         <div class="health-note" id="healthSyncSummary">Las sesiones nuevas se sincronizaran automaticamente al finalizar.</div>
+        <div class="health-note" id="healthRecoveryLimitNote"></div>
       </div>
     </div>
 
@@ -5041,8 +5033,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-10-29T09:22:48.844Z",
-      "updatedAt": "2026-10-29T09:22:48.844Z"
+      "createdAt": "2026-10-30T11:45:04.967Z",
+      "updatedAt": "2026-10-30T11:45:04.967Z"
     }
   ],
   "workoutLog": [],
@@ -9664,7 +9656,7 @@ let gymLogCloudSession = null;
 let gymLogGoogleConnected = false;
 let gymLogDriveConnected = false;
 let gymLogHealthBusy = false;
-const GYMLOG_HEALTH_BUTTONS = ['connectGoogleHealthButton','connectGoogleDriveButton','syncLatestHealthButton','syncHistoryHealthButton','retryHealthMetricsButton','recoverFitbitMetricsButton','backupHealthButton','listDriveBackupsButton'];
+const GYMLOG_HEALTH_BUTTONS = ['connectGoogleHealthButton','connectGoogleDriveButton','backupHealthButton','listDriveBackupsButton'];
 
 function setHealthActivity(message = '', busy = false){
   const note = document.getElementById('healthActivityNote');
@@ -9969,8 +9961,6 @@ function renderHealthSettings(){
   if(!loggedIn) return;
   userLabel.textContent = `Sesion privada: ${gymLogCloudSession.user?.email || 'usuario conectado'}`;
   connectButton.textContent = gymLogGoogleConnected ? 'Gestionar conexion' : 'Conectar Google Health';
-  const latestButton = document.getElementById('syncLatestHealthButton');
-  if(latestButton) latestButton.hidden = !gymLogGoogleConnected;
   if(driveButton) driveButton.textContent = gymLogDriveConnected ? 'Reconectar Google Drive' : 'Conectar Google Drive';
   const synced = state.workoutLog.filter(log => healthForLog(log).syncStatus === 'synced').length;
   const pending = state.workoutLog.filter(log => ['ready','pending','error'].includes(healthForLog(log).syncStatus)).length;
@@ -10355,7 +10345,7 @@ async function retrySessionMetrics(logId){
   if(!gymLogGoogleConnected) return alert('Primero conecta Google Health.');
   const log = state.workoutLog.find(entry => entry.id === logId);
   if(!log) return;
-  const finishBusy = setHealthBusy('retryHealthMetricsButton', 'Actualizando...', `Reintentando Fitbit: ${log.routineName || 'sesion'}`);
+  const finishBusy = setHealthBusy(null, 'Actualizando...', `Reintentando Fitbit: ${log.routineName || 'sesion'}`);
   try{
     const ok = await syncWorkoutToHealth(log.id, { silent:true });
     setHealthActivity(ok ? 'Datos Fitbit revisados' : 'No se pudieron revisar datos Fitbit', false);
@@ -10620,7 +10610,7 @@ async function initializeGymLogCloud(){
   }
   history.replaceState({}, document.title, `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`);
   if(gymLogGoogleConnected){
-    for(const log of [...state.workoutLog].filter(item => healthForLog(item).autoSyncRequested && ['pending','error'].includes(healthForLog(item).syncStatus)).sort((a,b) => String(b.completedAt || b.date || '').localeCompare(String(a.completedAt || a.date || ''))).slice(0,5)){
+    for(const log of [...state.workoutLog].filter(item => healthForLog(item).autoSyncRequested && ['pending','error'].includes(healthForLog(item).syncStatus)).sort((a,b) => String(b.completedAt || b.date || '').localeCompare(String(a.completedAt || a.date || '')))){
       await syncWorkoutToHealth(log.id, { backup:true, silent:true });
     }
   }

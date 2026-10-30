@@ -155,7 +155,7 @@ function exercisePointBody(session: WorkoutSession, metrics: Record<string, unkn
   if (metrics.heartRateZoneDurations) summary.heartRateZoneDurations = metrics.heartRateZoneDurations;
   return {
     name: stableDataPointName(session),
-    dataSource: { recordingMethod: "MANUALLY_ENTERED" },
+    dataSource: { recordingMethod: "MANUAL" },
     exercise: {
       interval: { startTime: session.startTime, startUtcOffset: session.utcOffset || "0s", endTime: session.endTime, endUtcOffset: session.utcOffset || "0s" },
       exerciseType: normalizeExerciseType(session.type),
