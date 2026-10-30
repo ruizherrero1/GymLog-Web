@@ -8,6 +8,7 @@ const html = read('public/gymlog-classic.html');
 const reliability = read('public/gymlog-reliability.js');
 const templates = read('public/gymlog-note-templates.js');
 const serviceWorker = read('public/service-worker.js');
+const googleFunction = read('supabase/functions/gymlog-google/index.ts');
 
 const failures = [];
 const check = (condition, message) => { if(!condition) failures.push(message); };
@@ -81,6 +82,11 @@ check(html.includes('https://www.google.com/search?q=${query}'), 'Google debe re
 check(html.includes('https://www.youtube.com/results?search_query=${query}'), 'YouTube debe recibir el nombre exacto del ejercicio.');
 check(occurrences(html, 'target="_blank" rel="noopener noreferrer"') >= 2, 'Las busquedas deben abrirse de forma aislada y segura.');
 check(html.includes('id="gymHealthMoreOptions"'), 'Las opciones secundarias de Health deben estar agrupadas en un panel compacto.');
+check(googleFunction.includes('recordingMethod: "MANUAL"'), 'Google Health debe recibir el enum actual MANUAL para los entrenos registrados en la app.');
+check(!googleFunction.includes('MANUALLY_ENTERED'), 'Google Health no debe recibir el enum inválido MANUALLY_ENTERED.');
+check(!html.includes('id="syncLatestHealthButton"') && !html.includes('id="syncHistoryHealthButton"'), 'Los botones manuales redundantes de sincronización deben permanecer retirados.');
+check(!html.includes('id="recoverFitbitMetricsButton"') && !html.includes('id="retryHealthMetricsButton"'), 'La recuperación automática no debe duplicarse con botones en Ajustes.');
+check(html.includes("healthForLog(item).syncStatus)).sort((a,b)"), 'El arranque debe procesar toda sesión solicitada, sin límite de cinco.');
 check(!html.includes('function exerciseEquipmentIcon(name)'), 'Los iconos de equipamiento deben permanecer retirados.');
 check(!html.includes('finishRpe'), 'El cierre del entreno no debe pedir RPE.');
 check(html.includes("name:'Cuello'"), 'Debe existir una rutina independiente de cuello.');
