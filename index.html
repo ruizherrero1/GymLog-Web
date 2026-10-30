@@ -156,15 +156,18 @@
   .ex-name { font-weight: 600; font-size: 16px; flex: 1; }
   .ex-progress { font-size: 12px; color: var(--muted); background: var(--bg); padding: 3px 10px; border-radius: 20px; }
   .series-table { padding: 12px 16px 14px; }
-  .col-headers { display: grid; grid-template-columns: 36px 1fr 1fr 44px; gap: 8px; padding: 0 0 8px; }
+  .col-headers { display: grid; grid-template-columns: 36px 1fr 1fr 44px 32px; gap: 8px; padding: 0 0 8px; }
   .col-header { font-size: 11px; color: var(--muted); text-align: center; text-transform: uppercase; letter-spacing: .5px; }
-  .series-row { display: grid; grid-template-columns: 36px 1fr 1fr 44px; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border); }
+  .series-row { display: grid; grid-template-columns: 36px 1fr 1fr 44px 32px; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border); }
+  .series-row.time-row, .col-headers.time-row { grid-template-columns: 36px 1fr 90px 44px 32px; }
   .series-label { font-size: 13px; color: var(--muted); font-weight: 600; text-align: center; }
   .series-input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 6px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; width: 100%; transition: border-color .2s; text-align: center; }
   .series-input:focus { outline: none; border-color: var(--accent); }
   .series-input:disabled { opacity: .25; }
   .series-tick { width: 44px; height: 44px; border-radius: 8px; border: 2px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s; font-size: 18px; flex-shrink: 0; }
   .series-tick.done { background: var(--done); border-color: var(--done); color: #000; }
+  .series-remove-btn { width:32px; height:40px; border:1px solid rgba(248,113,113,.25); border-radius:8px; background:rgba(248,113,113,.08); color:#fca5a5; font:700 18px/1 'DM Sans',sans-serif; cursor:pointer; touch-action:manipulation; }
+  .series-remove-btn:disabled { opacity:.35; cursor:default; }
   .series-row.done-row { opacity: .65; }
   .add-series-btn { margin-top: 10px; background: transparent; border: 1px dashed var(--border); border-radius: 8px; padding: 8px; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; width: 100%; transition: all .2s; }
   .add-series-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -784,13 +787,12 @@
     .ex-check { width: 22px; height: 22px; font-size: 11px; }
     .ex-progress { font-size: 11px; padding: 2px 8px; }
     .series-table { padding: 8px 10px 10px; }
-    .col-headers { grid-template-columns: 28px 1fr 1fr 40px; gap: 5px; }
-    .series-row { grid-template-columns: 28px 1fr 1fr 40px; gap: 5px; }
+    .col-headers { grid-template-columns: 28px minmax(42px,1fr) minmax(42px,1fr) 40px 28px; gap: 5px; }
+    .series-row { grid-template-columns: 28px minmax(42px,1fr) minmax(42px,1fr) 40px 28px; gap: 5px; }
+    .col-headers.time-row, .series-row.time-row { grid-template-columns: 28px minmax(42px,1fr) 78px 40px 28px; gap: 5px; }
     .series-label { font-size: 12px; }
     .series-input { font-size: 14px; padding: 7px 4px; }
     .series-tick { width: 40px; height: 40px; font-size: 16px; }
-    .col-headers.time-row { grid-template-columns: 28px 1fr 84px 40px; gap: 5px; }
-    .series-row.time-row { grid-template-columns: 28px 1fr 84px 40px; gap: 5px; }
     .timer-btn { height: 40px; font-size: 11px; padding: 0 4px; }
     #phase-active .series-input { min-height: 44px; font-size: 16px; }
     #phase-active .series-tick { min-height: 44px; }
@@ -845,8 +847,7 @@
   }
   @media (max-width: 640px) and (min-width: 481px) {
     .routine-grid { grid-template-columns: 1fr 1fr; }
-    .col-headers.time-row { grid-template-columns: 30px 1fr 86px 42px; gap: 6px; }
-    .series-row.time-row { grid-template-columns: 30px 1fr 86px 42px; gap: 6px; }
+    .col-headers.time-row, .series-row.time-row { grid-template-columns: 30px minmax(42px,1fr) 76px 38px 28px; gap: 5px; }
   }
 
 .routine-card-compact{display:flex;flex-direction:column;justify-content:space-between;min-height:166px;padding:20px 20px 18px;border-radius:22px;gap:16px;position:relative;overflow:hidden;}
@@ -985,34 +986,6 @@
         </div>
         <div class="active-chip" id="activeExerciseCount">5 ejercicios</div>
       </div>
-      <div class="active-summary-card" id="activeSummaryCard">
-      <div class="active-summary-top">
-        <div>
-          <div class="active-summary-label">Ahora te toca</div>
-          <div class="active-current-name">Elevación de rodillas colgado</div>
-          <div class="active-current-meta">
-            <div class="active-meta-pill">5/5 ejercicios</div>
-            <div class="active-meta-pill">15/15 series</div>
-            <div class="active-meta-pill">Reps: 12 reps</div>
-          </div>
-          <div class="active-summary-actions">
-            <button class="active-summary-toggle" onclick="toggleActiveExerciseList()">Ver lista completa</button>
-            <button class="active-summary-toggle" onclick="jumpToNextExercise()">Siguiente ejercicio</button>
-          </div>
-        </div>
-        <div class="active-progress-ring" style="--ring-progress:100%"><span>100%</span></div>
-      </div>
-      <div class="active-progress-track">
-        <div class="active-progress-copy">
-          <span>Progreso de la sesion</span>
-          <strong>15/15</strong>
-        </div>
-        <div class="active-progress-bar"><div class="active-progress-fill" style="width:100%"></div></div>
-      </div>
-      <div class="active-mini-list is-collapsed">
-        <div class="active-mini-item done" onclick="focusExercisePanel('imp-e-5-0')"><div class="active-mini-item-name">Dominadas supinas</div><div class="active-mini-item-status">4/4 · Hecho</div></div><div class="active-mini-item done" onclick="focusExercisePanel('imp-e-5-1')"><div class="active-mini-item-name">Curl de bíceps con mancuernas</div><div class="active-mini-item-status">4/4 · Hecho</div></div><div class="active-mini-item done" onclick="focusExercisePanel('imp-e-5-2')"><div class="active-mini-item-name">Curl martillo con mancuernas</div><div class="active-mini-item-status">3/3 · Hecho</div></div><div class="active-mini-item done" onclick="focusExercisePanel('imp-e-5-3')"><div class="active-mini-item-name">Remo con mancuerna</div><div class="active-mini-item-status">2/2 · Hecho</div></div><div class="active-mini-item done current" onclick="focusExercisePanel('imp-e-5-4')"><div class="active-mini-item-name">Elevación de rodillas colgado</div><div class="active-mini-item-status">2/2 · Hecho</div></div>
-      </div>
-    </div>
       <div id="activeExercises"></div>
       <div id="activeRestTimer" class="rest-timer-dock" aria-live="polite"></div>
       <div id="activeQuickActions" class="active-dock">
@@ -6155,48 +6128,6 @@ function renderActiveExercises(){
   const doneSeries = exerciseStats.reduce((acc, item) => acc + item.done, 0);
   const progressPct = totalSeries ? Math.round((doneSeries / totalSeries) * 100) : 0;
 
-  const summaryCard = document.getElementById('activeSummaryCard');
-  if(summaryCard){
-    const typeLabel = currentStat?.ex.type === 'time'
-      ? 'Tiempo'
-      : (currentStat?.ex.type === 'weight' ? 'Peso' : 'Reps');
-    const nextPendingSeries = currentStat?.d.series.find(s=>!s.done);
-    const hintValue = currentStat?.ex.type === 'time'
-      ? formatSeconds(nextPendingSeries?.remaining ?? nextPendingSeries?.duration ?? currentStat?.d.series[0]?.duration ?? currentStat?.d.series[0]?.reps ?? 60)
-      : `${nextPendingSeries?.reps ?? currentStat?.d.series[0]?.reps ?? 0} reps`;
-
-    summaryCard.innerHTML = `
-      <div class="active-summary-top">
-        <div>
-          <div class="active-summary-label">Ahora te toca</div>
-          <div class="active-current-name">${escapeHtml(currentStat?.ex.name || 'Rutina completada')}</div>
-          <div class="active-current-meta">
-            <div class="active-meta-pill">🏁 ${completedExercises}/${exerciseStats.length} ejercicios</div>
-            <div class="active-meta-pill">📊 ${doneSeries}/${totalSeries} series</div>
-            <div class="active-meta-pill">${typeLabel}: ${escapeHtml(String(hintValue))}</div>
-          </div>
-        </div>
-        <div class="active-progress-ring" style="--ring-progress:${progressPct}%"><span>${progressPct}%</span></div>
-      </div>
-      <div class="active-progress-track">
-        <div class="active-progress-copy">
-          <span>Progreso de la sesión</span>
-          <strong>${doneSeries}/${totalSeries}</strong>
-        </div>
-        <div class="active-progress-bar"><div class="active-progress-fill" style="width:${progressPct}%"></div></div>
-      </div>
-      <div class="active-mini-list">
-        ${exerciseStats.map(item => {
-          const status = item.allDone ? 'Hecho' : (item.ex.id === currentExerciseId ? 'En curso' : 'Pendiente');
-          const classes = ['active-mini-item'];
-          if(item.allDone) classes.push('done');
-          if(item.ex.id === currentExerciseId) classes.push('current');
-          return `<div class="${classes.join(' ')}"><div class="active-mini-item-name">${escapeHtml(item.ex.name)}</div><div class="active-mini-item-status">${item.done}/${item.total} · ${status}</div></div>`;
-        }).join('')}
-      </div>
-    `;
-  }
-
   const sessionPill = document.getElementById('activeSessionPill');
   if(sessionPill){
     sessionPill.innerHTML = `⏱ <strong>${formatSeconds(timerSeconds || 0)}</strong>`;
@@ -7062,6 +6993,7 @@ function showDayDetail(ds){
           </div>
           <div class="history-day-total">0 sesiones</div>
         </div>
+        <button class="history-delete-btn" style="margin-top:12px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:var(--text)" onclick="openManualSession('${ds}')">＋ Añadir sesión</button>
         <div class="empty" style="padding:18px 10px 6px">Sin entrenamientos este día</div>
       </div>`;
     return;
@@ -7079,6 +7011,7 @@ function showDayDetail(ds){
       </div>
       ${daySummaryHtml(entries, totalVolume)}
       ${calendarSignalsLegendHtml(entries)}
+      <button class="history-delete-btn" style="margin:0 0 12px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:var(--text)" onclick="openManualSession('${ds}')">＋ Añadir sesión</button>
       ${entries.map(e=>{
         const done = sessionDoneCount(e);
         const total = sessionSeriesCount(e);
@@ -7092,15 +7025,15 @@ function showDayDetail(ds){
                   <div class="history-chip info" title="Intervalo usado para recuperar la frecuencia cardiaca">${escapeHtml(sessionTimeRangeLabel(e))}</div>
                   <div class="history-chip">${e.durationLabel ? escapeHtml(e.durationLabel) : 'Sin tiempo'}</div>
                   <div class="history-chip">${Math.round(sessionVolume(e))} kg</div>
-                  <div class="history-chip muted">${done}/${total} series</div>
-                  <div class="history-chip muted">${completion}% completado</div>
+                  <div class="history-chip muted">${total ? `${done}/${total} series` : 'Sin series detalladas'}</div>
+                  ${total ? `<div class="history-chip muted">${completion}% completado</div>` : ''}
                   ${omittedExercisesChipHtml(e)}
                 </div>
                 ${sessionFeedbackHtml(e)}
               </div>
             </div>
             <div class="history-ex-list">
-              ${e.exercises.map(ex=>{
+              ${e.exercises.length ? e.exercises.map(ex=>{
                 const doneSets = ex.series.filter(s=>s.done).length;
                 const totalSets = ex.series.length;
                 const pct = totalSets ? Math.round((doneSets/totalSets)*100) : 0;
@@ -7115,7 +7048,7 @@ function showDayDetail(ds){
                     <div class="history-ex-bar"><div class="history-ex-fill" style="width:${pct}%"></div></div>
                   </div>
                 `;
-              }).join('')}
+              }).join('') : '<div class="history-ex-detail">Entreno guardado sin desglose de ejercicios o series.</div>'}
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
               <button class="history-delete-btn" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:var(--text)" onclick="openEditLog('${e.id}')">Editar sesión</button>
@@ -7130,6 +7063,7 @@ function showDayDetail(ds){
 let editingLogId = null;
 let editingLogDraft = null;
 let editingLogTime = '12:00';
+let editingManualSession = false;
 
 function formatWorkoutDurationLabel(seconds){
   const safe = Math.max(0, Math.round(+seconds || 0));
@@ -7175,10 +7109,28 @@ function applyEditedSessionDateTime(log, timeValue){
 function openEditLog(id){
   const log = state.workoutLog.find(entry => entry.id === id);
   if(!log) return;
+  editingManualSession = false;
   editingLogId = id;
   editingLogDraft = structuredClone(log);
   editingLogTime = getEditableSessionTime(editingLogDraft);
   if(!editingLogDraft.exercises) editingLogDraft.exercises = [];
+  renderEditSessionForm();
+  openModal('overlayEditSession');
+}
+function openManualSession(ds){
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(ds || '')) ? ds : isoDate(new Date());
+  editingManualSession = true;
+  editingLogId = null;
+  editingLogTime = date === isoDate(new Date())
+    ? new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',hour12:false})
+    : '12:00';
+  editingLogDraft = {
+    date,
+    routineName:'',
+    duration:0,
+    durationLabel:'0s',
+    exercises:[]
+  };
   renderEditSessionForm();
   openModal('overlayEditSession');
 }
@@ -7241,6 +7193,21 @@ function removeEditSeries(exIdx, seriesIdx){
 function renderEditSessionForm(){
   const container = document.getElementById('editSessionContent');
   if(!container || !editingLogDraft) return;
+  const modalTitle = document.querySelector('#overlayEditSession .modal-title');
+  if(modalTitle) modalTitle.textContent = editingManualSession ? 'Añadir sesión' : 'Editar sesión';
+  if(editingManualSession){
+    container.innerHTML = `
+      <div class="edit-session-meta-grid">
+        <div class="field"><label>Fecha</label><input type="date" value="${escapeAttribute(editingLogDraft.date || isoDate(new Date()))}" onchange="updateEditSessionField('date', this.value)"></div>
+        <div class="field"><label>Hora de inicio</label><input type="time" step="60" value="${escapeAttribute(editingLogTime)}" onchange="updateEditSessionField('time', this.value)"></div>
+        <div class="field edit-session-duration-field"><label>Duración (min, opcional)</label><input type="number" min="1" step="1" placeholder="Para recuperar Fitbit" value="" oninput="updateEditSessionField('duration', this.value)"></div>
+        <div class="field edit-session-routine-field"><label>Entreno realizado</label><input id="manualSessionName" maxlength="100" placeholder="Ej.: Pierna, torso, carrera…" oninput="updateEditSessionField('routineName', this.value)"></div>
+      </div>
+      <div class="history-chip info" style="width:fit-content;margin:0 0 14px">La sesión se guardará en este dispositivo y en tu historial. Añade la duración para intentar recuperar la frecuencia cardiaca de Google/Fitbit.</div>
+      <button class="btn btn-primary" style="width:100%" onclick="saveEditedSession()">Guardar sesión</button>
+    `;
+    return;
+  }
   container.innerHTML = `
     <div class="edit-session-meta-grid">
       <div class="field"><label>Fecha</label><input type="date" value="${escapeAttribute(editingLogDraft.date || isoDate(new Date()))}" onchange="updateEditSessionField('date', this.value)"></div>
@@ -7312,19 +7279,59 @@ function normalizeEditedSession(log, timeValue){
   return next;
 }
 function saveEditedSession(){
-  if(!editingLogId || !editingLogDraft) return;
+  if(!editingLogDraft) return;
+  if(editingManualSession){
+    const name = String(editingLogDraft.routineName || '').trim();
+    const date = String(editingLogDraft.date || '');
+    if(!name){ showToast('Escribe qué entreno realizaste.'); document.getElementById('manualSessionName')?.focus(); return false; }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ showToast('Selecciona una fecha válida.'); return false; }
+    const created = normalizeEditedSession({
+      id:uid('log'),
+      date,
+      routineId:null,
+      routineName:name,
+      duration:Math.max(0,Math.round(+editingLogDraft.duration || 0)),
+      exercises:[],
+      health:{
+        syncStatus:+editingLogDraft.duration > 0 ? 'pending' : 'not_requested',
+        metricsStatus:+editingLogDraft.duration > 0 ? 'pending' : 'not_requested',
+        attempts:0,
+        autoSyncRequested:+editingLogDraft.duration > 0
+      }
+    }, editingLogTime);
+    if(!created.duration) created.durationLabel = '';
+    state.workoutLog.push(created);
+    if(save() === false){
+      state.workoutLog = state.workoutLog.filter(entry => entry.id !== created.id);
+      showToast('No se pudo guardar la sesión. No se ha perdido ningún dato anterior.');
+      return false;
+    }
+    editingManualSession = false;
+    editingLogDraft = null;
+    closeModal('overlayEditSession', true);
+    renderCalendar();
+    showDayDetail(created.date);
+    renderProgress();
+    showToast('Sesión añadida al historial');
+    if(created.duration > 0 && gymLogGoogleConnected && typeof syncWorkoutToHealth === 'function'){
+      setTimeout(()=>syncWorkoutToHealth(created.id, { backup:true, silent:true }), 0);
+    }
+    return true;
+  }
+  if(!editingLogId) return;
   const idx = state.workoutLog.findIndex(entry => entry.id === editingLogId);
   if(idx < 0) return;
   const previous = structuredClone(state.workoutLog[idx]);
   const updated = normalizeEditedSession(editingLogDraft, editingLogTime);
   const health = healthForLog(updated);
+  const hasSyncableInterval = updated.duration > 0;
   updated.health = {
     ...health,
-    syncStatus: health.remoteDataPointId ? health.syncStatus : 'pending',
-    metricsStatus: 'pending',
+    syncStatus: health.remoteDataPointId ? health.syncStatus : (hasSyncableInterval ? 'pending' : 'not_requested'),
+    metricsStatus: hasSyncableInterval ? 'pending' : (health.metricsStatus || 'not_requested'),
     metricsError: '',
     error: '',
-    autoSyncRequested: true
+    autoSyncRequested: hasSyncableInterval
   };
   state.workoutLog[idx] = updated;
   if(save() === false){
@@ -7341,7 +7348,7 @@ function saveEditedSession(){
   showDayDetail(updated.date);
   renderProgress();
   showToast('Sesión actualizada · FC pendiente de recuperar');
-  if(gymLogGoogleConnected && typeof syncWorkoutToHealth === 'function'){
+  if(updated.duration > 0 && gymLogGoogleConnected && typeof syncWorkoutToHealth === 'function'){
     setTimeout(()=>syncWorkoutToHealth(updated.id, { backup:true, silent:true }), 0);
   }
   return true;
@@ -8195,51 +8202,6 @@ function renderActiveExercises(){
     return;
   }
   const { exerciseStats, currentStat, currentExerciseId, completedExercises, totalSeries, doneSeries, progressPct } = snapshot;
-  const summaryCard = document.getElementById('activeSummaryCard');
-  if(summaryCard){
-    const emptyFreeWorkout = isFreeWorkout() && !exerciseStats.length;
-    const typeLabel = emptyFreeWorkout ? 'Libre' : (currentStat?.ex.type === 'time' ? 'Tiempo' : (currentStat?.ex.type === 'weight' ? 'Peso' : 'Reps'));
-    const nextPendingSeries = currentStat?.d.series.find(s=>!s.done);
-    const hintValue = emptyFreeWorkout
-      ? 'Peso, corporal o tiempo'
-      : currentStat?.ex.type === 'time'
-      ? formatSeconds(nextPendingSeries?.remaining ?? nextPendingSeries?.duration ?? currentStat?.d.series[0]?.duration ?? currentStat?.d.series[0]?.reps ?? 60)
-      : `${nextPendingSeries?.reps ?? currentStat?.d.series[0]?.reps ?? 0} reps`;
-    summaryCard.innerHTML = `
-      <div class="active-summary-top">
-        <div>
-          <div class="active-summary-label">${emptyFreeWorkout ? 'Entreno a tu manera' : 'Ahora te toca'}</div>
-          <div class="active-current-name">${escapeHtml(currentStat?.ex.name || (emptyFreeWorkout ? 'Añade tu primer ejercicio' : 'Rutina completada'))}</div>
-          <div class="active-current-meta">
-            <div class="active-meta-pill">${completedExercises}/${exerciseStats.length} ejercicios</div>
-            <div class="active-meta-pill">${doneSeries}/${totalSeries} series</div>
-            <div class="active-meta-pill">${typeLabel}: ${escapeHtml(String(hintValue))}</div>
-          </div>
-          <div class="active-summary-actions">
-            <button class="active-summary-toggle" onclick="toggleActiveExerciseList()">${activeWorkoutListExpanded ? 'Ocultar lista' : 'Ver lista completa'}</button>
-            ${emptyFreeWorkout ? '' : '<button class="active-summary-toggle" onclick="jumpToNextExercise()">Siguiente ejercicio</button>'}
-          </div>
-        </div>
-        <div class="active-progress-ring" style="--ring-progress:${progressPct}%"><span>${progressPct}%</span></div>
-      </div>
-      <div class="active-progress-track">
-        <div class="active-progress-copy">
-          <span>Progreso de la sesion</span>
-          <strong>${doneSeries}/${totalSeries}</strong>
-        </div>
-        <div class="active-progress-bar"><div class="active-progress-fill" style="width:${progressPct}%"></div></div>
-      </div>
-      <div class="active-mini-list ${activeWorkoutListExpanded ? '' : 'is-collapsed'}">
-        ${exerciseStats.map(item => {
-          const status = item.allDone ? 'Hecho' : (item.ex.id === currentExerciseId ? 'En curso' : 'Pendiente');
-          const classes = ['active-mini-item'];
-          if(item.allDone) classes.push('done');
-          if(item.ex.id === currentExerciseId) classes.push('current');
-          return `<div class="${classes.join(' ')}" onclick="focusExercisePanel('${item.ex.id}')"><div class="active-mini-item-name">${escapeHtml(item.ex.name)}</div><div class="active-mini-item-status">${item.done}/${item.total} · ${status}</div></div>`;
-        }).join('')}
-      </div>
-    `;
-  }
   updateActiveSessionPill();
   const exerciseCount = document.getElementById('activeExerciseCount');
   if(exerciseCount) exerciseCount.textContent = `${exerciseStats.length} ejercicios`;
@@ -8283,6 +8245,7 @@ function renderActiveExercises(){
               <div class="col-header">${isTime ? 'Tiempo' : 'Reps'}</div>
               <div class="col-header">${isTime ? 'Timer' : (showW ? 'Kg' : '')}</div>
               <div class="col-header">OK</div>
+              <div class="col-header" aria-label="Eliminar serie"></div>
             </div>
             ${d.series.map((s,i)=>{
               const seriesKey = `${ex.id}-${i}`;
@@ -8295,6 +8258,7 @@ function renderActiveExercises(){
                   ${isTime ? `<input class="series-input" type="text" inputmode="numeric" maxlength="5" value="${emptySeries ? '' : formatSeconds(timeValue)}" placeholder="mm:ss" oninput="handleTimeInputTyping(this)" onchange="updateSeriesTime('${ex.id}',${i},this.value)">` : `<input class="series-input" type="number" min="0" step="1" value="${emptySeries ? '' : (s.reps ?? '')}" placeholder="reps" onchange="updateSeries('${ex.id}',${i},'reps',this.value)">`}
                   ${isTime ? `<button id="tbtn-${ex.id}-${i}" class="timer-btn" ${timeValue > 0 ? '' : 'disabled'} onclick="toggleSeriesTimer('${ex.id}',${i})">${timeValue > 0 ? `${activeTimers[seriesKey] ? '⏸' : '▶'} ${formatSeconds(s.remaining ?? timeValue)}` : 'Añade tiempo'}</button>` : `<input class="series-input" type="number" min="0" step="0.5" value="${showW && !emptySeries ? (s.weight ?? '') : ''}" placeholder="${showW ? 'kg' : ''}" ${!showW ? 'disabled' : ''} onchange="updateSeries('${ex.id}',${i},'weight',this.value)">`}
                   <button class="series-tick ${s.done?'done':''}" onclick="tickSeries('${ex.id}',${i})">${s.done?'✓':'○'}</button>
+                  <button class="series-remove-btn" title="Eliminar serie ${i+1}" aria-label="Eliminar serie ${i+1} de ${escapeAttribute(ex.name)}" onclick="removeActiveSeries('${ex.id}',${i})" ${d.series.length <= 1 ? 'disabled' : ''}>×</button>
                 </div>
               `;
             }).join('')}
@@ -8319,6 +8283,19 @@ function renderActiveExercises(){
   }
   renderRestTimerDock();
   renderFocusTimer();
+}
+function removeActiveSeries(exId, idx){
+  const series = workoutData[exId]?.series;
+  if(!Array.isArray(series) || series.length <= 1 || idx < 0 || idx >= series.length) return;
+  if(focusTimerState.open && focusTimerState.exId === exId && focusTimerState.idx >= idx){
+    focusTimerState = { open:false, exId:null, idx:null };
+    closeFocusTimer();
+  }
+  for(let timerIdx=idx; timerIdx<series.length; timerIdx++) stopSeriesTimer(exId, timerIdx);
+  series.splice(idx, 1);
+  persistActiveWorkout();
+  renderActiveExercises();
+  showToast('Serie eliminada del entreno');
 }
 function toggleSeriesTimer(exId, idx){
   const key = `${exId}-${idx}`;
