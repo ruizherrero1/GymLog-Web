@@ -106,6 +106,39 @@
   .progress-info-panel:empty { display:none; }
   .progress-compact-list { display:grid; gap:8px; }
   .progress-compact-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-radius:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.06); font-size:13px; }
+  .summary-main-tabs, .summary-sub-tabs, .summary-metric-tabs { display:grid; gap:8px; }
+  .summary-main-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); margin:8px 0 14px; }
+  .summary-sub-tabs { grid-template-columns:repeat(4,minmax(0,1fr)); margin:0 0 14px; }
+  .summary-metric-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); margin:0 0 12px; }
+  .summary-tab-btn { min-width:0; min-height:46px; padding:10px 8px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,.05); color:var(--text); font:inherit; font-size:14px; font-weight:800; cursor:pointer; }
+  .summary-tab-btn[aria-pressed="true"] { border-color:var(--accent); background:var(--accent); color:#08110d; }
+  .summary-tab-btn:focus-visible, .summary-action-btn:focus-visible, .summary-select:focus-visible { outline:3px solid color-mix(in srgb, var(--accent) 65%, white); outline-offset:2px; }
+  .summary-week-checkin { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px; margin-bottom:12px; border:1px solid var(--border); border-radius:18px; background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--glass-bg)), var(--glass-bg)); }
+  .summary-week-copy { min-width:0; }
+  .summary-week-title { font-size:16px; font-weight:900; }
+  .summary-week-status { margin-top:4px; color:var(--accent); font-size:13px; font-weight:800; }
+  .summary-week-note, .summary-measure-meta, .summary-chart-note { margin-top:4px; color:var(--muted); font-size:12px; line-height:1.4; }
+  .summary-action-btn { flex:0 0 auto; min-height:46px; padding:11px 14px; border:0; border-radius:12px; background:var(--accent); color:#08110d; font:inherit; font-size:14px; font-weight:900; cursor:pointer; }
+  .summary-measure-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+  .summary-measure-card { min-width:0; padding:14px; border:1px solid var(--border); border-radius:18px; background:var(--glass-bg); box-shadow:var(--glass-shadow); }
+  .summary-measure-label { color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+  .summary-measure-value { margin-top:6px; font-family:'Bebas Neue',sans-serif; font-size:32px; line-height:1; color:var(--accent); overflow-wrap:anywhere; }
+  .summary-range-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+  .summary-range-row .summary-select { width:auto; max-width:170px; }
+  .summary-history-scope { margin:0 0 8px; color:var(--muted); font-size:12px; }
+  .summary-exercise-select { display:grid; gap:6px; margin:0 0 12px; }
+  .summary-exercise-select label { color:var(--muted); font-size:12px; font-weight:800; }
+  .summary-select { width:100%; min-height:46px; padding:9px 12px; border:1px solid var(--border); border-radius:12px; background:var(--bg); color:var(--text); font:inherit; font-size:15px; }
+  .summary-exercise-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:12px 0; }
+  .summary-exercise-metric { min-width:0; padding:12px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,.04); }
+  .summary-exercise-metric strong { display:block; margin-top:5px; font-size:16px; overflow-wrap:anywhere; }
+  .summary-exercise-history { display:grid; gap:8px; margin-top:10px; }
+  @media (max-width: 520px){
+    .summary-week-checkin { align-items:stretch; flex-direction:column; }
+    .summary-action-btn { width:100%; }
+    .summary-sub-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .summary-measure-value { font-size:28px; }
+  }
   @media (max-width: 640px){
     .filters-grid, .mini-grid { grid-template-columns:1fr; }
     .theme-menu { grid-template-columns:repeat(3,1fr); right:-10px; }
@@ -4758,9 +4791,10 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('overlayWeight')">✕</button>
     <div class="modal-title">Registrar medidas</div>
-    <div class="field"><label>Fecha</label><input id="weightDate" type="date"></div>
-    <div class="field"><label>Peso actual (kg)</label><input id="weightInput" type="number" min="0" step="0.1" placeholder="Ej: 70.4"></div>
-    <div class="field"><label>Cintura (cm, semanal y opcional)</label><input id="waistInput" type="number" min="0" step="0.1" placeholder="Ej: 82"></div>
+    <div class="field"><label for="weightDate">Fecha</label><input id="weightDate" type="date"></div>
+    <div class="field"><label for="weightInput">Peso actual (kg)</label><input id="weightInput" type="number" min="0" step="0.1" placeholder="Ej: 70.4"></div>
+    <div class="field"><label for="waistInput">Cintura (cm, semanal y opcional)</label><input id="waistInput" type="number" min="0" step="0.1" placeholder="Ej: 82"></div>
+    <div class="progress-note" id="weightReferenceNote" role="status" aria-live="polite" style="margin:0 0 14px"></div>
     <button class="btn btn-primary" style="width:100%" onclick="saveBodyWeight()">Guardar medidas</button>
   </div>
 </div>
@@ -7933,8 +7967,14 @@ function openWeightModal(){
   document.getElementById('weightDate').value = isoDate(new Date());
   const latest = getLatestWeightEntry();
   const latestWaist = getLatestWaistEntry();
-  document.getElementById('weightInput').value = latest ? latest.weight : '';
-  document.getElementById('waistInput').value = latestWaist ? latestWaist.waist : '';
+  document.getElementById('weightInput').value = '';
+  document.getElementById('waistInput').value = '';
+  const reference = document.getElementById('weightReferenceNote');
+  if(reference){
+    const weightText = latest ? `Último peso: ${Number(latest.weight).toFixed(1)} kg (${formatProgressDisplayDate(latest.date)})` : 'Todavía no hay un peso registrado.';
+    const waistText = latestWaist ? `Última cintura: ${Number(latestWaist.waist).toFixed(1)} cm (${formatProgressDisplayDate(latestWaist.date)})` : 'Todavía no hay una medida de cintura.';
+    reference.textContent = `${weightText} · ${waistText}. Introduce solo las medidas que quieres guardar para la fecha seleccionada; los campos vacíos evitan repetir valores anteriores.`;
+  }
   openModal('overlayWeight');
 }
 function saveBodyWeight(){
@@ -8990,6 +9030,10 @@ let progressChartMetric = 'duration';
 let progressChartRange = '90';
 let progressInfoOpen = '';
 let progressChartBars = [];
+let progressSection = 'measurements';
+let progressBodyMetric = 'weight';
+let progressTrainingView = 'general';
+let progressExerciseName = '';
 const PROGRESS_RANGE_LABELS = { '30':'Último mes', '90':'Últimos 3 meses', '180':'Últimos 6 meses', '365':'Último año', all:'Siempre' };
 const PROGRESS_METRICS = {
   duration: { label:'Duración', unit:'h', empty:'0 horas' },
@@ -8999,54 +9043,38 @@ const PROGRESS_METRICS = {
 
 function ensureProgressShellV2(){
   const tab = document.getElementById('tab-progress');
-  if(!tab || tab.dataset.progressShell === 'v2') return;
-  tab.dataset.progressShell = 'v2';
+  if(!tab || tab.dataset.progressShell === 'v3') return;
+  tab.dataset.progressShell = 'v3';
   tab.innerHTML = `
     <div class="section-title">Resumen</div>
-    <div class="stats-row">
-      <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total entrenos</div></div>
-      <div class="stat-card"><div class="stat-num" id="statWeek">0</div><div class="stat-label">Dias activos</div></div>
-      <div class="stat-card"><div class="stat-num" id="statMinutes">0</div><div class="stat-label">Tiempo total</div></div>
-      <div class="stat-card"><div class="stat-num" id="statVolume">0</div><div class="stat-label">Frecuencia/sem</div></div>
+    <div class="summary-main-tabs" role="group" aria-label="Sección del resumen">
+      <button class="summary-tab-btn" id="summaryTabMeasurements" aria-controls="progressSummaryContent" aria-pressed="true" onclick="setProgressSection('measurements')">Medidas</button>
+      <button class="summary-tab-btn" id="summaryTabTraining" aria-controls="progressSummaryContent" aria-pressed="false" onclick="setProgressSection('training')">Entrenamiento</button>
     </div>
-    <div class="progress-hero">
-      <div class="progress-hero-top">
-        <div class="progress-big-number" id="progressChartTotal">0 horas <span>en el periodo</span></div>
-        <select class="progress-range-select" id="progressChartRange" onchange="setProgressRange(this.value)">
-          <option value="30">Último mes</option>
-          <option value="90">Últimos 3 meses</option>
-          <option value="180">Últimos 6 meses</option>
-          <option value="365">Último año</option>
-          <option value="all">Siempre</option>
-        </select>
-      </div>
-      <div class="progress-chart-wrap"><canvas id="progressBarChart" class="progress-bar-chart"></canvas></div>
-      <div class="progress-note" id="progressChartDetail">Toca una barra para ver el detalle.</div>
-      <div class="progress-metric-tabs">
-        <button class="progress-metric-btn" id="progressMetricDuration" onclick="setProgressMetric('duration')">Duración</button>
-        <button class="progress-metric-btn" id="progressMetricVolume" onclick="setProgressMetric('volume')">Volumen</button>
-        <button class="progress-metric-btn" id="progressMetricReps" onclick="setProgressMetric('reps')">Repeticiones</button>
-      </div>
-    </div>
-    <div class="progress-info-title">Información</div>
-    <div class="progress-info-grid">
-      <button class="progress-info-card" id="progressInfoWeight" onclick="toggleProgressInfo('weight')"><span class="progress-info-icon">⚖️</span><span>Peso</span></button>
-      <button class="progress-info-card" id="progressInfoWeightTrend" onclick="toggleProgressInfo('weightTrend')"><span class="progress-info-icon">📈</span><span>Evolución peso</span></button>
-      <button class="progress-info-card" id="progressInfoRoutines" onclick="toggleProgressInfo('routines')"><span class="progress-info-icon">🏋️</span><span>Rutinas</span></button>
-      <button class="progress-info-card" id="progressInfoExercises" onclick="toggleProgressInfo('exercises')"><span class="progress-info-icon">📋</span><span>Ejercicios</span></button>
-      <button class="progress-info-card" id="progressInfoDiary" onclick="toggleProgressInfo('diary')"><span class="progress-info-icon">📓</span><span>Diario</span></button>
-      <button class="progress-info-card" id="progressInfoHeartRate" onclick="toggleProgressInfo('heartRate')"><span class="progress-info-icon">❤️</span><span>FC</span></button>
-    </div>
-    <div class="progress-info-panel" id="progressInfoPanel"></div>
-    <div id="logList" style="display:none"></div>
+    <div id="progressSummaryContent"></div>
+    <div id="logList" style="display:none" aria-hidden="true"></div>
   `;
-  const canvas = document.getElementById('progressBarChart');
-  if(canvas){
-    canvas.addEventListener('click', handleProgressChartPointer);
-    canvas.addEventListener('touchstart', handleProgressChartPointer, { passive:true });
-  }
 }
 
+function setProgressSection(section){
+  if(!['measurements','training'].includes(section)) return;
+  progressSection = section;
+  renderProgress();
+}
+function setProgressBodyMetric(metric){
+  if(!['weight','waist'].includes(metric)) return;
+  progressBodyMetric = metric;
+  renderProgress();
+}
+function setProgressTrainingView(view){
+  if(!['general','exercises','sessions','heartRate'].includes(view)) return;
+  progressTrainingView = view;
+  renderProgress();
+}
+function setProgressExercise(name){
+  progressExerciseName = String(name || '');
+  renderProgress();
+}
 function setProgressMetric(metric){
   if(!PROGRESS_METRICS[metric]) return;
   progressChartMetric = metric;
@@ -9098,10 +9126,12 @@ function progressMetricValue(log, metric){
   if(metric === 'reps') return progressSessionReps(log);
   return 0;
 }
-function progressActiveWeekFrequency(logs){
+function progressCalendarWeekFrequency(logs){
   if(!logs.length) return 0;
-  const activeWeeks = new Set(logs.map(log => progressWeekKey(log.date))).size;
-  return activeWeeks ? Math.round((logs.length / activeWeeks) * 10) / 10 : 0;
+  const firstWeek = progressWeekKey([...logs].map(log=>log.date).sort()[0]);
+  const currentWeek = progressWeekKey(isoDate(new Date()));
+  const elapsedWeeks = Math.max(1, Math.floor((new Date(`${currentWeek}T00:00:00`).getTime() - new Date(`${firstWeek}T00:00:00`).getTime()) / (7 * 86400000)) + 1);
+  return Math.round((logs.length / elapsedWeeks) * 10) / 10;
 }
 function progressChartData(logs, range, metric){
   const bucketMode = range === '30' || range === '90' ? 'week' : 'month';
@@ -9209,40 +9239,190 @@ function handleProgressChartPointer(event){
   const detail = document.getElementById('progressChartDetail');
   if(detail) detail.textContent = `${bar.item.label}: ${formatProgressValue(bar.item.value, progressChartMetric)} · ${bar.item.sessions} ${bar.item.sessions === 1 ? 'sesion' : 'sesiones'}`;
 }
-function renderProgressInfoPanel(logs){
+function formatProgressDisplayDate(dateStr){
+  if(!dateStr) return '';
+  const date = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? String(dateStr) : date.toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' });
+}
+function progressMeasurementChange(items, valueKey, unit){
+  const sorted = [...items].sort((a,b)=>a.date.localeCompare(b.date));
+  if(sorted.length < 2) return 'Añade registros semanales para ver el cambio aproximado en 4 semanas.';
+  const latest = sorted[sorted.length - 1];
+  const latestTime = new Date(`${latest.date}T00:00:00`).getTime();
+  const references = sorted.slice(0,-1).map(item=>({ item, days:(latestTime - new Date(`${item.date}T00:00:00`).getTime()) / 86400000 }))
+    .filter(item=>item.days >= 21 && item.days <= 35)
+    .sort((a,b)=>Math.abs(a.days - 28) - Math.abs(b.days - 28));
+  if(!references.length) return 'Cuando haya un registro de hace unas 4 semanas, mostraré la diferencia aquí.';
+  const delta = Math.round((Number(latest[valueKey]) - Number(references[0].item[valueKey])) * 10) / 10;
+  const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
+  const amount = Math.abs(delta).toLocaleString('es-ES', { minimumFractionDigits:1, maximumFractionDigits:1 });
+  return `Cambio aprox. en 4 semanas: ${sign}${amount} ${unit}`;
+}
+function progressMeasurementWeekStatus(today = new Date()){
+  const todayKey = isoDate(today);
+  const weekStart = progressWeekKey(todayKey);
+  const loggedThisWeek = log => (Array.isArray(log) ? log : []).some(item=>item.date >= weekStart && item.date <= todayKey);
+  const hasWeight = loggedThisWeek(state.weightLog);
+  const hasWaist = loggedThisWeek(state.waistLog);
+  const status = hasWeight && hasWaist ? 'Completado' : (hasWeight || hasWaist ? 'Parcial' : 'Pendiente');
+  const note = hasWeight && hasWaist
+    ? 'Peso y cintura registrados esta semana. ¡Seguimiento al día!'
+    : hasWeight
+      ? 'Peso registrado; falta la cintura para completar esta semana.'
+      : hasWaist
+        ? 'Cintura registrada; falta el peso para completar esta semana.'
+        : 'Registra peso y cintura una vez esta semana para seguir tu evolución.';
+  return { status, note, weekStart };
+}
+function renderProgressMeasurements(panel){
+  const weightLog = [...(state.weightLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
+  const waistLog = [...(state.waistLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
+  const latestWeight = weightLog[weightLog.length - 1];
+  const latestWaist = waistLog[waistLog.length - 1];
+  const week = progressMeasurementWeekStatus();
+  const weightValue = latestWeight ? `${Number(latestWeight.weight).toFixed(1)} kg` : 'Sin registro';
+  const waistValue = latestWaist ? `${Number(latestWaist.waist).toFixed(1)} cm` : 'Sin registro';
+  const weightMeta = latestWeight ? `Último registro: ${formatProgressDisplayDate(latestWeight.date)}` : 'Añade tu primera medida';
+  const waistMeta = latestWaist ? `Último registro: ${formatProgressDisplayDate(latestWaist.date)}` : 'Añade tu primera medida';
+  const metricTitle = progressBodyMetric === 'weight' ? 'Evolución del peso' : 'Evolución de la cintura';
+  const metricLog = progressBodyMetric === 'weight' ? weightLog : waistLog;
+  const metricKey = progressBodyMetric === 'weight' ? 'weight' : 'waist';
+  const unit = progressBodyMetric === 'weight' ? 'kg' : 'cm';
+  const metricCanvasId = 'bodyMeasurementChart';
+  panel.innerHTML = `
+    <div class="summary-week-checkin" role="status" aria-live="polite">
+      <div class="summary-week-copy">
+        <div class="summary-week-title">Esta semana · ${escapeHtml(formatProgressDisplayDate(week.weekStart))}</div>
+        <div class="summary-week-status">${escapeHtml(week.status)}</div>
+        <div class="summary-week-note">${escapeHtml(week.note)}</div>
+      </div>
+      <button class="summary-action-btn" type="button" onclick="openWeightModal()">Registrar medidas</button>
+    </div>
+    <div class="summary-measure-grid">
+      <div class="summary-measure-card"><div class="summary-measure-label">Peso</div><div class="summary-measure-value">${escapeHtml(weightValue)}</div><div class="summary-measure-meta">${escapeHtml(weightMeta)}</div><div class="summary-measure-meta">${escapeHtml(progressMeasurementChange(weightLog,'weight','kg'))}</div></div>
+      <div class="summary-measure-card"><div class="summary-measure-label">Cintura</div><div class="summary-measure-value">${escapeHtml(waistValue)}</div><div class="summary-measure-meta">${escapeHtml(waistMeta)}</div><div class="summary-measure-meta">${escapeHtml(progressMeasurementChange(waistLog,'waist','cm'))}</div></div>
+    </div>
+    <div class="summary-metric-tabs" role="group" aria-label="Métrica corporal del gráfico">
+      <button class="summary-tab-btn" id="summaryMetricWeight" type="button" aria-pressed="${progressBodyMetric === 'weight'}" onclick="setProgressBodyMetric('weight')">Peso</button>
+      <button class="summary-tab-btn" id="summaryMetricWaist" type="button" aria-pressed="${progressBodyMetric === 'waist'}" onclick="setProgressBodyMetric('waist')">Cintura</button>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">${metricTitle}</div>
+      <canvas id="${metricCanvasId}" class="chart-canvas" width="640" height="220" role="img" aria-label="${metricTitle}"></canvas>
+      <div class="summary-chart-note">Registra las medidas en un día y unas condiciones parecidas cada semana para comparar mejor.</div>
+    </div>`;
+  drawLineChart(metricCanvasId, metricLog.map(item=>item.date), metricLog.map(item=>Number(item[metricKey]) || 0), unit);
+}
+function progressRangeSelectHtml(){
+  return `<select class="progress-range-select summary-select" id="progressChartRange" aria-label="Periodo de entrenamientos" onchange="setProgressRange(this.value)">
+    <option value="30">Último mes</option><option value="90">Últimos 3 meses</option><option value="180">Últimos 6 meses</option><option value="365">Último año</option><option value="all">Siempre</option>
+  </select>`;
+}
+function progressTrainingShellHtml(){
+  return `
+    <div class="summary-sub-tabs" role="group" aria-label="Vistas de entrenamiento">
+      <button class="summary-tab-btn" id="trainingViewGeneral" type="button" aria-pressed="${progressTrainingView === 'general'}" onclick="setProgressTrainingView('general')">General</button>
+      <button class="summary-tab-btn" id="trainingViewExercises" type="button" aria-pressed="${progressTrainingView === 'exercises'}" onclick="setProgressTrainingView('exercises')">Ejercicios</button>
+      <button class="summary-tab-btn" id="trainingViewSessions" type="button" aria-pressed="${progressTrainingView === 'sessions'}" onclick="setProgressTrainingView('sessions')">Sesiones</button>
+      <button class="summary-tab-btn" id="trainingViewHeartRate" type="button" aria-pressed="${progressTrainingView === 'heartRate'}" onclick="setProgressTrainingView('heartRate')">FC</button>
+    </div>
+    <div class="summary-range-row"><span class="summary-measure-label">Periodo de gráficos y sesiones</span>${progressRangeSelectHtml()}</div>
+    <div class="summary-history-scope">Indicadores de todo el historial; la media semanal también cuenta semanas sin entrenamientos.</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Entrenos totales</div></div>
+      <div class="stat-card"><div class="stat-num" id="statWeek">0</div><div class="stat-label">Días entrenados</div></div>
+      <div class="stat-card"><div class="stat-num" id="statMinutes">0</div><div class="stat-label">Minutos totales</div></div>
+      <div class="stat-card"><div class="stat-num" id="statVolume">0</div><div class="stat-label">Media sesiones/sem</div></div>
+    </div>
+    <div class="progress-info-panel" id="progressInfoPanel"></div>`;
+}
+function progressExerciseNames(logs){
+  return [...new Set(logs.flatMap(log=>(log.exercises || []).map(ex=>String(ex.name || '').trim()).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,'es'));
+}
+function progressMostRecentExercise(logs){
+  const sorted = [...logs].sort((a,b)=> (a.date === b.date ? String(b.id).localeCompare(String(a.id)) : b.date.localeCompare(a.date)));
+  for(const log of sorted){
+    const exercise = (log.exercises || []).find(ex=>String(ex.name || '').trim());
+    if(exercise) return exercise.name;
+  }
+  return '';
+}
+function progressExercisePoint(log, name){
+  const exercise = (log.exercises || []).find(item=>item.name === name);
+  if(!exercise) return null;
+  const series = Array.isArray(exercise.series) ? exercise.series : [];
+  const completed = series.filter(item=>item.done);
+  const performed = completed.length ? completed : series;
+  if(!performed.length) return null;
+  const values = performed.map(item=>exercise.type === 'time' ? Number(item.duration ?? item.reps) || 0 : exercise.type === 'weight' ? Number(item.weight) || 0 : Number(item.reps) || 0);
+  const value = Math.max(...values);
+  return Number.isFinite(value) ? { date:log.date, value, type:exercise.type || 'reps', routine:log.routineName || '' } : null;
+}
+function renderProgressExerciseView(panel, logs, allLogs){
+  const names = progressExerciseNames(allLogs);
+  if(!names.includes(progressExerciseName)) progressExerciseName = progressMostRecentExercise(allLogs);
+  if(!names.length){
+    panel.innerHTML = '<div class="chart-card"><div class="empty">Aún no hay ejercicios registrados para comparar.</div></div>';
+    return;
+  }
+  const options = names.map(name=>`<option value="${escapeAttribute(name)}"${name === progressExerciseName ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('');
+  const points = logs.map(log=>progressExercisePoint(log, progressExerciseName)).filter(Boolean);
+  const exerciseType = allLogs.flatMap(log=>log.exercises || []).find(ex=>ex.name === progressExerciseName)?.type || 'reps';
+  const type = points[0]?.type || exerciseType;
+  const unit = type === 'time' ? 's' : type === 'weight' ? 'kg' : 'reps';
+  const latest = points[points.length - 1];
+  const best = points.reduce((current, point)=>!current || point.value > current.value ? point : current, null);
+  const recent = [...points].reverse().slice(0,8);
+  panel.innerHTML = `<div class="chart-card">
+    <div class="chart-title">Progresión del ejercicio</div>
+    <div class="summary-exercise-select"><label for="progressExerciseSelect">Elige un ejercicio</label><select id="progressExerciseSelect" class="summary-select" onchange="setProgressExercise(this.value)">${options}</select></div>
+    <div class="summary-exercise-metrics">
+      <div class="summary-exercise-metric"><span class="summary-measure-label">Último en el periodo</span><strong>${latest ? `${escapeHtml(formatRecordValue(type,latest.value))} · ${escapeHtml(formatProgressDisplayDate(latest.date))}` : 'Sin registros en este periodo'}</strong></div>
+      <div class="summary-exercise-metric"><span class="summary-measure-label">Mejor en el periodo</span><strong>${best ? `${escapeHtml(formatRecordValue(type,best.value))} · ${escapeHtml(formatProgressDisplayDate(best.date))}` : '—'}</strong></div>
+    </div>
+    <canvas id="progressExerciseChart" class="chart-canvas" width="640" height="220" role="img" aria-label="Evolución de ${escapeAttribute(progressExerciseName)}"></canvas>
+    <div class="summary-chart-note">Se muestra el mejor peso, las repeticiones máximas o el tiempo máximo de cada sesión.</div>
+    ${recent.length ? `<div class="summary-exercise-history" aria-label="Registros recientes">${recent.map(point=>`<div class="progress-compact-item"><span>${escapeHtml(formatProgressDisplayDate(point.date))}${point.routine ? ` · ${escapeHtml(point.routine)}` : ''}</span><strong>${escapeHtml(formatRecordValue(point.type,point.value))}</strong></div>`).join('')}</div>` : ''}
+  </div>
+  <div class="chart-card"><div class="chart-title">Ejercicios más repetidos</div><div id="topExercises" class="progress-compact-list"></div></div>`;
+  drawLineChart('progressExerciseChart', points.map(point=>point.date), points.map(point=>point.value), unit);
+  renderProgressTopLists(logs);
+}
+function renderProgressTrainingContent(logs, allLogs){
   const panel = document.getElementById('progressInfoPanel');
   if(!panel) return;
-  ['Weight','WeightTrend','Routines','Exercises','Diary','HeartRate'].forEach(name => document.getElementById(`progressInfo${name}`)?.classList.remove('active'));
-  if(!progressInfoOpen){ panel.innerHTML = ''; return; }
-  const activeMap = { weight:'progressInfoWeight', weightTrend:'progressInfoWeightTrend', routines:'progressInfoRoutines', exercises:'progressInfoExercises', diary:'progressInfoDiary', heartRate:'progressInfoHeartRate' };
-  document.getElementById(activeMap[progressInfoOpen])?.classList.add('active');
-  if(progressInfoOpen === 'weight'){
-    panel.innerHTML = `<div class="chart-card"><div class="weight-summary-card"><div><div class="chart-title" style="margin-bottom:2px">Peso</div><div class="weight-value" id="currentWeightValue">--</div><div class="weight-meta" id="currentWeightMeta">Sin registros todavía</div></div><div><div class="chart-title" style="margin-bottom:2px">Cintura</div><div class="weight-value" id="currentWaistValue">--</div><div class="weight-meta" id="currentWaistMeta">Sin registros todavía</div></div><button class="ghost-btn" onclick="openWeightModal()">Registrar medidas</button></div></div>`;
-    renderWeightProgress();
-    return;
-  }
-  if(progressInfoOpen === 'weightTrend'){
-    panel.innerHTML = `<div class="chart-card"><div class="chart-title">Evolución de peso</div><canvas id="weightChart" class="chart-canvas" width="640" height="220"></canvas><div class="chart-title" style="margin-top:20px">Evolución de cintura</div><canvas id="waistChart" class="chart-canvas" width="640" height="220"></canvas><div class="progress-note">Registra la cintura una vez por semana, en condiciones parecidas, para ver mejor los cambios de definición.</div></div>`;
-    renderWeightProgress();
-    return;
-  }
-  if(progressInfoOpen === 'routines'){
-    panel.innerHTML = `<div class="chart-card"><div class="chart-title">Rutinas más usadas</div><div id="topRoutines" class="progress-compact-list"></div></div>`;
+  if(progressTrainingView === 'general'){
+    panel.innerHTML = `<div class="progress-hero">
+      <div class="progress-hero-top"><div class="progress-big-number" id="progressChartTotal">0 horas <span>en el periodo</span></div></div>
+      <div class="progress-chart-wrap"><canvas id="progressBarChart" class="progress-bar-chart" aria-label="Actividad de entrenamiento por periodo"></canvas></div>
+      <div class="progress-note" id="progressChartDetail" role="status" aria-live="polite">Toca una barra para ver el detalle.</div>
+      <div class="progress-metric-tabs" role="group" aria-label="Métrica del gráfico">
+        <button class="progress-metric-btn${progressChartMetric === 'duration' ? ' active' : ''}" id="progressMetricDuration" type="button" aria-pressed="${progressChartMetric === 'duration'}" onclick="setProgressMetric('duration')">Duración</button>
+        <button class="progress-metric-btn${progressChartMetric === 'volume' ? ' active' : ''}" id="progressMetricVolume" type="button" aria-pressed="${progressChartMetric === 'volume'}" onclick="setProgressMetric('volume')">Volumen</button>
+        <button class="progress-metric-btn${progressChartMetric === 'reps' ? ' active' : ''}" id="progressMetricReps" type="button" aria-pressed="${progressChartMetric === 'reps'}" onclick="setProgressMetric('reps')">Repeticiones</button>
+      </div>
+    </div><div class="chart-card"><div class="chart-title">Rutinas más usadas</div><div id="topRoutines" class="progress-compact-list"></div></div>`;
+    const chartItems = progressChartData(logs, progressChartRange, progressChartMetric);
+    const totalValue = chartItems.reduce((sum,item)=>sum + item.value,0);
+    const totalEl = document.getElementById('progressChartTotal');
+    if(totalEl) totalEl.innerHTML = `${formatProgressValue(totalValue,progressChartMetric)} <span>en el periodo</span>`;
+    drawProgressBarChart(chartItems, progressChartMetric);
+    const canvas = document.getElementById('progressBarChart');
+    if(canvas){ canvas.addEventListener('click',handleProgressChartPointer); canvas.addEventListener('touchstart',handleProgressChartPointer,{passive:true}); }
+    const detail = document.getElementById('progressChartDetail');
+    if(detail) detail.textContent = chartItems.length ? 'Toca una barra para ver el detalle.' : 'Sin sesiones en este periodo.';
     renderProgressTopLists(logs);
     return;
   }
-  if(progressInfoOpen === 'exercises'){
-    panel.innerHTML = `<div class="chart-card"><div class="chart-title">Ejercicios más repetidos</div><div id="topExercises" class="progress-compact-list"></div></div>`;
-    renderProgressTopLists(logs);
+  if(progressTrainingView === 'exercises'){
+    renderProgressExerciseView(panel, logs, allLogs);
     return;
   }
-  if(progressInfoOpen === 'diary'){
+  if(progressTrainingView === 'sessions'){
     renderProgressDiaryPanel(logs);
     return;
   }
-  if(progressInfoOpen === 'heartRate'){
-    renderProgressHeartRatePanel(logs);
-  }
+  if(progressTrainingView === 'heartRate') renderProgressHeartRatePanel(logs);
 }
 function renderProgressTopLists(logs){
   const routineCounts = {};
@@ -9297,7 +9477,7 @@ function renderProgressDiaryPanel(logs){
   const panel = document.getElementById('progressInfoPanel');
   if(!panel) return;
   const recent = [...logs].sort((a,b)=> (a.date===b.date ? String(b.id).localeCompare(String(a.id)) : b.date.localeCompare(a.date))).slice(0,20);
-  panel.innerHTML = `<div class="chart-card"><div class="chart-title">Diario</div><div class="progress-note" style="margin-bottom:12px">Ultimas sesiones del periodo seleccionado, con datos Fitbit si existen.</div>${recent.length ? recent.map(progressSessionCardHtml).join('') : '<div class="empty" style="padding:14px 0">Sin sesiones en este periodo</div>'}</div>`;
+  panel.innerHTML = `<div class="chart-card"><div class="chart-title">Diario</div><div class="progress-note" style="margin-bottom:12px">Últimas sesiones del periodo seleccionado, con datos Fitbit si existen.</div>${recent.length ? recent.map(progressSessionCardHtml).join('') : '<div class="empty" style="padding:14px 0">Sin sesiones en este periodo</div>'}</div>`;
 }
 function progressHeartRatePoints(logs){
   return [...logs].sort((a,b)=>a.date.localeCompare(b.date)).map(log => {
@@ -9402,28 +9582,35 @@ function renderProgressHeartRatePanel(logs){
 }
 function renderProgress(){
   ensureProgressShellV2();
-  const allLogs = [...state.workoutLog].sort((a,b)=>a.date.localeCompare(b.date));
-  const rangeEl = document.getElementById('progressChartRange');
-  if(rangeEl && rangeEl.value !== progressChartRange) rangeEl.value = progressChartRange;
+  const content = document.getElementById('progressSummaryContent');
+  if(!content) return;
+  const allLogs = [...(state.workoutLog || [])].sort((a,b)=>a.date.localeCompare(b.date));
+  const measurementsButton = document.getElementById('summaryTabMeasurements');
+  const trainingButton = document.getElementById('summaryTabTraining');
+  measurementsButton?.setAttribute('aria-pressed', String(progressSection === 'measurements'));
+  trainingButton?.setAttribute('aria-pressed', String(progressSection === 'training'));
+  if(progressSection === 'measurements'){
+    content.innerHTML = '';
+    renderProgressMeasurements(content);
+    return;
+  }
   const totalSessions = allLogs.length;
   const totalDays = new Set(allLogs.map(e=>e.date)).size;
   const totalMinutes = Math.round(allLogs.reduce((acc, entry)=> acc + (+entry.duration || 0), 0) / 60);
-  const frequencyPerActiveWeek = progressActiveWeekFrequency(allLogs);
-  document.getElementById('statTotal').textContent = totalSessions;
-  document.getElementById('statWeek').textContent = totalDays;
-  document.getElementById('statMinutes').textContent = totalMinutes;
-  document.getElementById('statVolume').textContent = frequencyPerActiveWeek;
+  const frequencyPerCalendarWeek = progressCalendarWeekFrequency(allLogs);
+  content.innerHTML = progressTrainingShellHtml();
+  const totalEl = document.getElementById('statTotal');
+  const daysEl = document.getElementById('statWeek');
+  const minutesEl = document.getElementById('statMinutes');
+  const frequencyEl = document.getElementById('statVolume');
+  if(totalEl) totalEl.textContent = totalSessions;
+  if(daysEl) daysEl.textContent = totalDays;
+  if(minutesEl) minutesEl.textContent = totalMinutes;
+  if(frequencyEl) frequencyEl.textContent = frequencyPerCalendarWeek;
   const chartLogs = progressLogsForRange(progressChartRange);
-  const chartItems = progressChartData(chartLogs, progressChartRange, progressChartMetric);
-  const totalValue = chartItems.reduce((sum, item) => sum + item.value, 0);
-  const totalEl = document.getElementById('progressChartTotal');
-  if(totalEl) totalEl.innerHTML = `${formatProgressValue(totalValue, progressChartMetric)} <span>en el periodo</span>`;
-  Object.keys(PROGRESS_METRICS).forEach(metric => document.getElementById(`progressMetric${metric[0].toUpperCase()}${metric.slice(1)}`)?.classList.toggle('active', metric === progressChartMetric));
-  drawProgressBarChart(chartItems, progressChartMetric);
-  const detail = document.getElementById('progressChartDetail');
-  if(detail) detail.textContent = chartItems.length ? 'Toca una barra para ver el detalle.' : 'Sin sesiones en este periodo.';
-  renderProgressInfoPanel(chartLogs);
-  renderHealthProgressCards();
+  const rangeEl = document.getElementById('progressChartRange');
+  if(rangeEl) rangeEl.value = progressChartRange;
+  renderProgressTrainingContent(chartLogs, allLogs);
 }
 function getNotesSections(){
   if(!state.settings) state.settings = {};
