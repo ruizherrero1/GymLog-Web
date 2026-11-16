@@ -15,6 +15,7 @@
   let pendingRecoveredIntoState = false;
   let nextSnapshotReason = null;
   let recoveryRunning = false;
+  let recoverySnapshotsCompacted = false;
 
   const STARTUP_HIDDEN_IDS = [
     'phase-grid',
@@ -100,7 +101,7 @@
       if(!pending || typeof pending !== 'object') return null;
       const pendingState = pending.state && typeof pending.state === 'object'
         ? pending.state
-        : JSON.parse(localStorage.getItem(pending.storageKey || STORAGE_KEY) || 'null');
+        : parseLocalState(localStorage.getItem(pending.storageKey || STORAGE_KEY) || 'null');
       if(!pendingState || typeof pendingState !== 'object') return null;
       localSequence = Math.max(localSequence, Number(pending.sequence) || 0);
       return { ...pending, state:pendingState };
@@ -149,10 +150,23 @@
     }
   }
 
+  function compactRecoverySnapshots(){
+    if(recoverySnapshotsCompacted) return;
+    Object.keys(localStorage).filter(key => key.startsWith(RECOVERY_PREFIX)).forEach(key => {
+      try{
+        const raw = localStorage.getItem(key);
+        if(raw) localStorage.setItem(key, serializeLocalState(parseLocalState(raw)));
+      }catch(error){
+        console.warn('No se pudo compactar una copia local de recuperación.', error);
+      }
+    });
+    recoverySnapshotsCompacted = true;
+  }
+
   function preserveRecoveryState(label, value){
     try{
       const key = `${RECOVERY_PREFIX}${label}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-      localStorage.setItem(key, JSON.stringify(value));
+      localStorage.setItem(key, serializeLocalState(value));
       const recoveryKeys = Object.keys(localStorage).filter(item => item.startsWith(RECOVERY_PREFIX)).sort();
       recoveryKeys.slice(0, Math.max(0, recoveryKeys.length - 5)).forEach(item => localStorage.removeItem(item));
       return key;
@@ -216,6 +230,7 @@
   const baseSave = save;
   save = function(){
     compactLegacyPendingState();
+    compactRecoverySnapshots();
     let savedLocally = baseSave.apply(this, arguments);
     while(savedLocally === false && removeOldestRecoverySnapshot()){
       savedLocally = baseSave.apply(this, arguments);
@@ -257,7 +272,7 @@
         }
         const shouldSaveNeckRoutine = !Array.isArray(data.data.routines) || !data.data.routines.some(routine => normalizeExerciseText(routine?.name || '') === 'cuello');
         state = normalizeState({ ...state, ...data.data });
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        persistLocalState(state);
         refreshCloudUi();
         if(shouldSaveNeckRoutine) await saveUserCloudState({ immediate:true, silent:true });
         setCloudStatus('ok', `Nube ✓ r${cloudRevision}`);
@@ -293,7 +308,7 @@
     if(saveError) throw saveError;
     if(result?.status !== 'saved') throw new Error('La nube cambió de nuevo durante la combinación. Se conservó una copia local.');
     state = merged;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    persistLocalState(state);
     cloudRevision = Number(result.revision) || Number(remote.revision) + 1;
     cloudUpdatedAt = result.updatedAt || new Date().toISOString();
     const pending = readPendingState();
