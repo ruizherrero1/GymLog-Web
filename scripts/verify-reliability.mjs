@@ -14,7 +14,7 @@ const failures = [];
 const check = (condition, message) => { if(!condition) failures.push(message); };
 const occurrences = (source, value) => source.split(value).length - 1;
 
-check(occurrences(html, '<script src="/gymlog-reliability.js?v=20261116-local-hr-compact"></script>') === 1, 'El módulo reliability debe cargarse una vez y saltarse caches antiguas.');
+check(occurrences(html, '<script src="/gymlog-reliability.js?v=20261116-auto-rest-dock"></script>') === 1, 'El módulo reliability debe cargarse una vez y saltarse caches antiguas.');
 check(occurrences(html, '<script src="/gymlog-note-templates.js"></script>') === 1, 'El catálogo de notas debe cargarse una vez.');
 check(html.includes("if('serviceWorker' in navigator"), 'El HTML generado debe registrar el service worker.');
 check(!html.includes("if(false && 'serviceWorker'"), 'El service worker no puede quedar desactivado.');
@@ -36,7 +36,7 @@ check(reliability.includes('calendarHeartRateHtml(log)'), 'El calendario debe in
 check(reliability.includes('const baseShowDayDetail = showDayDetail'), 'El detalle del calendario debe conservar su comportamiento original.');
 check(reliability.includes('class="gym-calendar-hr-canvas"'), 'La tarjeta del calendario debe incluir la grafica FC.');
 check(reliability.includes("openHeartRateDetails('${escapeAttribute(log.id)}')"), 'La grafica resumida debe abrir el detalle completo.');
-check(serviceWorker.includes('gymlog-web-v15-20261116-local-hr-compact'), 'La recuperacion de almacenamiento debe invalidar la cache PWA anterior.');
+check(serviceWorker.includes('gymlog-web-v16-20261116-auto-rest-dock'), 'La PWA debe invalidar la caché anterior.');
 check(reliability.includes('let cloudStatusHideTimer = null'), 'El aviso de nube debe controlar su ocultacion automatica.');
 check(reliability.includes("kind === 'ok' ? 2200 : (kind === 'pending' ? 2500 : 7000)"), 'Los estados de nube deben desaparecer segun su importancia.');
 check(reliability.includes('.gym-cloud-status.visible{opacity:.88'), 'El aviso de nube debe mostrarse como indicador temporal.');
@@ -77,7 +77,7 @@ check(reliability.includes('pendingRecoveredIntoState = true'), 'La recuperacion
 check(!html.includes('const activeWorkoutBackup = localStorage.getItem(ACTIVE_WORKOUT_KEY);'), 'Finalizar debe conservar la copia activa hasta confirmar el guardado.');
 check(/state\.workoutLog\.push\(entry\);\s*if\(save\(\) === false\)/.test(html), 'El cierre debe guardar antes de retirar el entreno activo.');
 check(html.includes("updateViaCache:'none'"), 'La PWA debe buscar siempre la ultima version del service worker.');
-check(serviceWorker.includes("gymlog-web-v15-20261116-local-hr-compact"), 'La cache de la PWA debe invalidar la version anterior.');
+check(serviceWorker.includes("gymlog-web-v16-20261116-auto-rest-dock"), 'La cache de la PWA debe invalidar la version anterior.');
 check(reliability.includes('if(result) Promise.resolve(result)'), 'La nube solo debe sincronizar una finalizacion local confirmada.');
 check(html.includes('max-width: calc(100vw - 24px)'), 'Los avisos criticos deben caber y envolver texto en movil.');
 check(html.includes('https://www.google.com/search?q=${query}'), 'Google debe recibir el nombre exacto del ejercicio.');
@@ -127,8 +127,9 @@ check(html.includes("title:'Prueba +2,5 kg'"), 'La progresion con peso debe prop
 check(html.includes('...(finishNote ? { note:finishNote } : {})'), 'La nota rapida debe guardarse solo cuando contiene texto.');
 check(html.includes("type: activityType"), 'Google Health debe distinguir la bicicleta de la fuerza.');
 check(html.includes('googleSummaryUpdated: !!result.googleSummaryUpdated'), 'La app debe conservar el resultado del resumen enviado a Google.');
-check(reliability.includes('class=\"gym-workout-tool gym-rest-pill\"'), 'El descanso debe mostrarse como una pastilla compacta.');
-check(reliability.includes('justify-content:flex-end'), 'Los controles auxiliares del entreno deben quedar compactos y alineados.');
+check(reliability.includes('class=\"gym-rest-pill\"'), 'El descanso debe mostrarse como una pastilla compacta.');
+check(html.includes('role=\"switch\" aria-checked=\"false\" aria-label=\"Descanso automático\"'), 'La barra debe ofrecer un interruptor accesible de descanso automático.');
+check(reliability.includes('id=\"gymManualRestActions\"'), 'Las acciones del descanso deben compartir una cápsula compacta.');
 
 for(const file of ['public/gymlog-reliability.js','public/gymlog-note-templates.js','public/service-worker.js','scripts/prepare-classic-web.mjs']){
   const result = spawnSync(process.execPath, ['--check', file], { cwd:root, encoding:'utf8' });

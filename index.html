@@ -535,12 +535,12 @@
   #phase-active .series-input { min-height: 50px; font-size: 18px; font-weight: 600; }
   #phase-active .series-tick { min-height: 50px; font-size: 20px; }
   #phase-active .timer-btn { min-height: 50px; font-size: 13px; font-weight: 700; }
-  #phase-active .finish-section { position: static; margin-top: 8px; border-width: 2px; box-shadow: 0 12px 28px rgba(0,0,0,.28); padding-bottom: 156px; }
+  #phase-active .finish-section { position: static; margin-top: 8px; border-width: 2px; box-shadow: 0 12px 28px rgba(0,0,0,.28); padding-bottom: 88px; }
   #phase-active .finish-btn { min-height: 58px; font-size: 28px; }
   #phase-active .discard-btn { min-height: 48px; font-size: 16px; }
   .active-dock {
     position: fixed; left: max(12px, calc((100vw - 700px) / 2 + 16px)); right: max(12px, calc((100vw - 700px) / 2 + 16px));
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 90; display:grid; grid-template-columns: 1.15fr .95fr .9fr;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 90; display:grid; grid-template-columns: minmax(0,1.15fr) minmax(0,.88fr) minmax(0,1fr);
     gap:8px; padding:10px; margin-top: 16px; border-radius: 18px;
     background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px);
     border:1px solid rgba(255,255,255,.08); box-shadow: 0 18px 40px rgba(0,0,0,.30);
@@ -551,7 +551,13 @@
     padding: 0 12px;
   }
   .dock-btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)); border-color: color-mix(in srgb, var(--accent) 36%, transparent); color: var(--accent2); }
-  .dock-btn.done { background: color-mix(in srgb, var(--done) 14%, transparent); border-color: color-mix(in srgb, var(--done) 36%, transparent); color: #9ef1d0; }
+  .auto-rest-switch { display:flex; align-items:center; justify-content:center; gap:6px; min-width:0; padding:0 6px; font-size:11px; white-space:nowrap; }
+  .auto-rest-track { position:relative; flex:0 0 30px; width:30px; height:18px; border-radius:99px; background:var(--border); transition:background .18s ease; }
+  .auto-rest-thumb { position:absolute; top:3px; left:3px; width:12px; height:12px; border-radius:50%; background:var(--text); transition:transform .18s ease; }
+  .auto-rest-switch.on { border-color:color-mix(in srgb,var(--done) 42%,var(--border)); color:var(--done); }
+  .auto-rest-switch.on .auto-rest-track { background:var(--done); }
+  .auto-rest-switch.on .auto-rest-thumb { background:var(--bg); transform:translateX(12px); }
+  .auto-rest-switch:focus-visible { outline:2px solid var(--accent2); outline-offset:2px; }
   .dock-btn:hover { border-color: var(--accent); }
   .rest-timer-dock { position:fixed; left:max(12px, calc((100vw - 700px) / 2 + 16px)); right:max(12px, calc((100vw - 700px) / 2 + 16px)); bottom:calc(82px + env(safe-area-inset-bottom, 0px)); z-index:89; display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--border); border-radius:16px; background:color-mix(in srgb, var(--bg) 88%, transparent); box-shadow:0 10px 24px rgba(0,0,0,.26); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
   .rest-timer-copy { display:flex; flex-direction:column; min-width:66px; padding-left:4px; }
@@ -1020,11 +1026,9 @@
         <div class="active-chip" id="activeExerciseCount">5 ejercicios</div>
       </div>
       <div id="activeExercises"></div>
-      <div id="activeRestTimer" class="rest-timer-dock" aria-live="polite"></div>
       <div id="activeQuickActions" class="active-dock">
       <button class="dock-btn primary" disabled="" onclick="markCurrentSeries()">Sin pendientes</button>
-      <button class="dock-btn" onclick="jumpToNextExercise()">Siguiente</button>
-      <button class="dock-btn done" onclick="askFinishWorkout()">Finalizar</button>
+      <button class="dock-btn auto-rest-switch" type="button" role="switch" aria-checked="false" aria-label="Descanso automático" onclick="toggleAutoRest()"><span>Auto</span><span class="auto-rest-track" aria-hidden="true"><span class="auto-rest-thumb"></span></span></button>
     </div>
         <div class="finish-section">
       <p>¿Has terminado? Guarda tu sesión.</p>
@@ -8367,8 +8371,7 @@ function renderActiveExercises(){
   if(dock){
     dock.innerHTML = `
       <button class="dock-btn primary" ${pending ? '' : 'disabled'} onclick="markCurrentSeries()">${pending ? 'Marcar serie' : 'Sin pendientes'}</button>
-      <button class="dock-btn" ${exerciseStats.length ? '' : 'disabled'} onclick="jumpToNextExercise()">Siguiente</button>
-      <button class="dock-btn done" onclick="askFinishWorkout()">Finalizar</button>
+      <button class="dock-btn auto-rest-switch" type="button" role="switch" aria-checked="false" aria-label="Descanso automático" onclick="toggleAutoRest()"><span>Auto</span><span class="auto-rest-track" aria-hidden="true"><span class="auto-rest-thumb"></span></span></button>
     `;
   }
   renderRestTimerDock();
@@ -10902,5 +10905,5 @@ document.addEventListener('touchend', e => {
   </div>
 </div>
 <script src="/gymlog-note-templates.js"></script>
-<script src="/gymlog-reliability.js?v=20261116-local-hr-compact"></script>
+<script src="/gymlog-reliability.js?v=20261116-auto-rest-dock"></script>
 </body></html>
