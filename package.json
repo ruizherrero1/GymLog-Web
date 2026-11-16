@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "verify:reliability": "node scripts/verify-reliability.mjs",
     "test:local-storage": "node scripts/test-local-storage.mjs",
-    "test:finish-workout": "node scripts/test-finish-workout.mjs"
+    "test:finish-workout": "node scripts/test-finish-workout.mjs",
+    "test:auto-rest": "node scripts/test-auto-rest.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",
