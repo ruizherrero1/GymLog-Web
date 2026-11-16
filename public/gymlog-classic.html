@@ -4812,9 +4812,15 @@
       <label class="finish-note-label" for="finishNote">Nota rápida (opcional)</label>
       <textarea id="finishNote" maxlength="240" rows="2" placeholder="Ej.: buena técnica, molestias, sensaciones..."></textarea>
     </div>
+    <div class="field" style="text-align:left; margin-bottom:12px;">
+      <label for="finishStartedAt">Inicio del entreno</label><input id="finishStartedAt" type="datetime-local">
+    </div>
+    <div class="field" style="text-align:left; margin-bottom:16px;">
+      <label for="finishCompletedAt">Fin del entreno</label><input id="finishCompletedAt" type="datetime-local">
+    </div>
     <div style="display:flex; gap:10px;">
       <button class="btn" style="flex:1; background:rgba(255,255,255,0.08); color:var(--text);" onclick="closeModal('overlayConfirmFinish')">Seguir entrenando</button>
-      <button class="btn btn-primary" style="flex:1;" onclick="closeModal('overlayConfirmFinish'); finishWorkout();">Sí, terminar</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="finishWorkout()">Sí, terminar</button>
     </div>
   </div>
 </div>
@@ -5040,8 +5046,8 @@ const importedState = {
           "notes": "Ejemplo de ejercicio por tiempo. Usa los segundos como objetivo."
         }
       ],
-      "createdAt": "2026-11-04T11:55:19.815Z",
-      "updatedAt": "2026-11-04T11:55:19.815Z"
+      "createdAt": "2026-11-16T12:10:47.347Z",
+      "updatedAt": "2026-11-16T12:10:47.347Z"
     }
   ],
   "workoutLog": [],
@@ -5177,21 +5183,54 @@ function hashString(value){
 const IMPORTED_STATE_SIGNATURE = hashString(JSON.stringify(importedState));
 let pendingStartupSyncMessage = '';
 
+// localStorage is small on iOS. Keep the cloud JSON unchanged, but store the
+// repetitive heart-rate samples in a lossless, compact form on this device.
+function packLocalHeartRateSamples(samples){
+  if(!Array.isArray(samples) || !samples.length) return samples;
+  if(!samples.every(sample => sample && typeof sample === 'object' &&
+    Object.keys(sample).length === 2 && Object.hasOwn(sample, 'bpm') && Object.hasOwn(sample, 'time') &&
+    (sample.time === '' || (typeof sample.time === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(sample.time) &&
+      Number.isFinite(Date.parse(sample.time)) && new Date(sample.time).toISOString().slice(0, 19) + 'Z' === sample.time)))) return samples;
+  const firstTime = samples.find(sample => sample.time)?.time;
+  const base = firstTime ? Date.parse(firstTime) / 1000 : null;
+  return { _gymHrPackedV1:1, base, rows:samples.map(sample =>
+    sample.time ? [sample.bpm, Date.parse(sample.time) / 1000 - base] : [sample.bpm]) };
+}
+function unpackLocalHeartRateSamples(value){
+  if(!value || value._gymHrPackedV1 !== 1 || !Array.isArray(value.rows)) return value;
+  return value.rows.map(row => ({
+    bpm:row[0],
+    time:row.length > 1 && Number.isFinite(value.base) && Number.isFinite(row[1])
+      ? new Date((value.base + row[1]) * 1000).toISOString().slice(0, 19) + 'Z'
+      : ''
+  }));
+}
+function serializeLocalState(value){
+  return JSON.stringify(value, (key, item) => key === 'heartRateSamples' ? packLocalHeartRateSamples(item) : item);
+}
+function parseLocalState(raw){
+  return JSON.parse(raw, (key, item) => key === 'heartRateSamples' ? unpackLocalHeartRateSamples(item) : item);
+}
+function persistLocalState(value){
+  localStorage.setItem(STORAGE_KEY, serializeLocalState(value));
+}
+
 function parseStoredState(){
   try{
     const current = localStorage.getItem(STORAGE_KEY);
-    if(current) return JSON.parse(current);
+    if(current) return parseLocalState(current);
     for(const key of LEGACY_STORAGE_KEYS){
       const legacy = localStorage.getItem(key);
       if(!legacy) continue;
-      localStorage.setItem(STORAGE_KEY, legacy);
-      return JSON.parse(legacy);
+      const parsed = parseLocalState(legacy);
+      try{ persistLocalState(parsed); }
+      catch(error){ console.warn('La copia antigua se cargó, pero no cabía en el almacenamiento local.', error); }
+      return parsed;
     }
     return null;
   } catch(error){
-    console.warn('No se pudo leer el estado guardado. Se reinicia desde el HTML.', error);
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
+    console.error('No se pudo leer el estado guardado. Se conserva para recuperarlo.', error);
+    throw error;
   }
 }
 
@@ -5252,14 +5291,15 @@ function loadState(){
     if(saved) pendingStartupSyncMessage = '✓ Rutinas del HTML sincronizadas';
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(base));
+  try{ persistLocalState(base); }
+  catch(error){ console.warn('Se cargaron los datos, pero aún no caben en el almacenamiento local.', error); }
   return base;
 }
 
 let state = loadState();
 function save(){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    persistLocalState(state);
   }catch(error){
     console.error('No se pudo guardar el estado local de GymLog.', error);
     return false;
@@ -6361,6 +6401,16 @@ function addSeries(exId){
 function askFinishWorkout(){
   const note = document.getElementById('finishNote');
   if(note) note.value = '';
+  const localMinute = timestamp => {
+    const date = new Date(timestamp);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  const startInput = document.getElementById('finishStartedAt');
+  const endInput = document.getElementById('finishCompletedAt');
+  startInput.dataset.originalMs = String(timerStart || Date.now() - currentWorkoutElapsedSeconds() * 1000);
+  endInput.dataset.originalMs = String(Date.now());
+  startInput.value = localMinute(Number(startInput.dataset.originalMs));
+  endInput.value = localMinute(Number(endInput.dataset.originalMs));
   openModal('overlayConfirmFinish');
 }
 
@@ -8482,13 +8532,29 @@ function finishWorkout(){
     return false;
   }
   const finishNote = String(document.getElementById('finishNote')?.value || '').trim().slice(0,240);
-  const completedAtMs = Date.now();
-  const elapsed = currentWorkoutElapsedSeconds();
-  const startedAtMs = timerStart || (completedAtMs - (elapsed * 1000));
+  const startInput = document.getElementById('finishStartedAt');
+  const endInput = document.getElementById('finishCompletedAt');
+  const localMinute = timestamp => {
+    const date = new Date(timestamp);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  const originalStart = Number(startInput?.dataset.originalMs);
+  const originalEnd = Number(endInput?.dataset.originalMs);
+  const startedAtMs = Number.isFinite(originalStart) && originalStart > 0 && startInput?.value === localMinute(originalStart)
+    ? originalStart : new Date(startInput?.value || '').getTime();
+  const completedAtMs = Number.isFinite(originalEnd) && originalEnd > 0 && endInput?.value === localMinute(originalEnd)
+    ? Date.now() : new Date(endInput?.value || '').getTime();
+  if(!Number.isFinite(startedAtMs) || !Number.isFinite(completedAtMs) ||
+    startedAtMs > completedAtMs || completedAtMs > Date.now() + 60000){
+    showToast('Revisa las horas de inicio y fin.');
+    return false;
+  }
+  const elapsed = Math.floor((completedAtMs - startedAtMs) / 1000);
   const completedAt = new Date(completedAtMs).toISOString();
   const startedAt = new Date(startedAtMs).toISOString();
   const alreadySaved = state.workoutLog.find(log => log.routineId === currentRoutineId && log.startedAt === startedAt);
   if(alreadySaved){
+    closeModal('overlayConfirmFinish');
     leaveCompletedWorkout();
     showToast('✓ Este entreno ya estaba guardado');
     return alreadySaved;
@@ -8508,22 +8574,14 @@ function finishWorkout(){
     exercises: completedExercises.map(ex=>({ id: ex.id, name: ex.name, type: ex.type, group: ex.group || '', notes: ex.notes || '', series: workoutSeriesForLog(ex) })),
     health: { syncStatus:'pending', metricsStatus:'pending', attempts:0, autoSyncRequested:true }
   };
-  const activeWorkoutBackup = localStorage.getItem(ACTIVE_WORKOUT_KEY);
-  clearActiveWorkout();
   state.workoutLog.push(entry);
   if(save() === false){
     const failedIndex = state.workoutLog.findIndex(log => log.id === entry.id);
     if(failedIndex >= 0) state.workoutLog.splice(failedIndex, 1);
-    try{
-      if(activeWorkoutBackup) localStorage.setItem(ACTIVE_WORKOUT_KEY, activeWorkoutBackup);
-      else persistActiveWorkout();
-    }catch(error){
-      console.warn('No se pudo restaurar la copia exacta de la sesion activa.', error);
-      persistActiveWorkout();
-    }
     showToast('No se pudo guardar por falta de espacio. El entreno sigue activo.');
     return false;
   }
+  closeModal('overlayConfirmFinish');
   leaveCompletedWorkout();
   showToast(`✓ Guardado · ${entry.durationLabel}`);
   if(typeof syncWorkoutToHealth === 'function'){
@@ -10650,7 +10708,7 @@ async function loadUserCloudState(){
       if(data?.data){
         state = { ...state, ...data.data };
         gymLogCloudRevision = Number.isFinite(+data.revision) ? +data.revision : null;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        persistLocalState(state);
         if(!restoreActiveWorkout()) renderWorkoutGrid(); document.getElementById('gymlog-web-boot-cleanup')?.remove();
         showToast('✓ Datos cargados desde la nube');
       } else {
@@ -10868,5 +10926,5 @@ document.addEventListener('touchend', e => {
   </div>
 </div>
 <script src="/gymlog-note-templates.js"></script>
-<script src="/gymlog-reliability.js?v=20260916-storage-recovery"></script>
+<script src="/gymlog-reliability.js?v=20261116-local-hr-compact"></script>
 </body></html>
